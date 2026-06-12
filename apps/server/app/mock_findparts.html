@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FindItParts Mock</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #07111f;
+        color: #e5f6ff;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top left, rgba(34, 211, 238, 0.18), transparent 38%), #07111f;
+      }
+      main {
+        width: min(1120px, calc(100vw - 48px));
+        margin: 0 auto;
+        padding: 40px 0;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      .brand {
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .cart-link {
+        border: 1px solid #2563eb;
+        border-radius: 8px;
+        background: #0f1d32;
+        color: #bfdbfe;
+        padding: 10px 14px;
+        cursor: pointer;
+      }
+      .panel {
+        border: 1px solid #23344f;
+        border-radius: 12px;
+        background: rgba(13, 23, 40, 0.92);
+        padding: 24px;
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+      }
+      .search {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+      }
+      input {
+        border: 1px solid #334155;
+        border-radius: 8px;
+        background: #0b1220;
+        color: #f8fafc;
+        padding: 12px 14px;
+        font-size: 16px;
+      }
+      button {
+        border: 0;
+        border-radius: 8px;
+        background: #0284c7;
+        color: white;
+        padding: 12px 16px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #0369a1;
+      }
+      .product,
+      .cart {
+        display: none;
+        margin-top: 22px;
+        border: 1px solid #1f8fb8;
+        border-radius: 10px;
+        padding: 18px;
+        background: #0b2334;
+      }
+      .product.visible,
+      .cart.visible {
+        display: block;
+      }
+      .muted {
+        color: #94a3b8;
+      }
+      .row {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      #quantity {
+        width: 88px;
+      }
+      .checkout {
+        margin-top: 18px;
+        border-top: 1px solid #23344f;
+        padding-top: 18px;
+      }
+      .danger {
+        background: #7f1d1d;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <div class="brand">FindItParts Mock</div>
+          <p class="muted">Stable local commerce page for Navora Lite demos.</p>
+        </div>
+        <button id="cart-link" class="cart-link" type="button">Cart</button>
+      </header>
+
+      <section class="panel">
+        <div class="search">
+          <input id="search-input" aria-label="Search input" placeholder="Search parts" />
+          <button id="search-button" type="button">Search</button>
+        </div>
+
+        <article class="product" id="product-card">
+          <p class="muted">Product result</p>
+          <h1 data-product-name="FIRESTONE W01-377-8537">FIRESTONE W01-377-8537</h1>
+          <p>Air spring replacement part for demo automation.</p>
+          <button data-testid="product-link" id="product-link" type="button">Open product</button>
+        </article>
+
+        <article class="product" id="product-detail">
+          <p class="muted">Product detail</p>
+          <h2>FIRESTONE W01-377-8537</h2>
+          <div class="row">
+            <label for="quantity">Quantity</label>
+            <input id="quantity" aria-label="Quantity" value="1" type="number" min="1" />
+            <button id="add-to-cart" type="button">Add to Cart</button>
+          </div>
+        </article>
+
+        <article class="cart" id="cart-panel">
+          <p class="muted">Cart</p>
+          <h2 id="cart-product-name">FIRESTONE W01-377-8537</h2>
+          <p>
+            Quantity:
+            <strong id="cart-quantity" data-cart-quantity="1">1</strong>
+          </p>
+          <div class="checkout">
+            <button class="danger" type="button">Checkout</button>
+          </div>
+        </article>
+      </section>
+    </main>
+    <script>
+      const productCard = document.querySelector("#product-card");
+      const productDetail = document.querySelector("#product-detail");
+      const cartPanel = document.querySelector("#cart-panel");
+      const quantity = document.querySelector("#quantity");
+      const cartQuantity = document.querySelector("#cart-quantity");
+
+      document.querySelector("#search-button").addEventListener("click", () => {
+        productCard.classList.add("visible");
+      });
+      document.querySelector("#product-link").addEventListener("click", () => {
+        productDetail.classList.add("visible");
+      });
+      document.querySelector("#add-to-cart").addEventListener("click", () => {
+        const value = quantity.value || "1";
+        cartQuantity.textContent = value;
+        cartQuantity.setAttribute("data-cart-quantity", value);
+        cartPanel.classList.add("visible");
+      });
+      document.querySelector("#cart-link").addEventListener("click", () => {
+        cartPanel.classList.add("visible");
+      });
+    </script>
+  </body>
+</html>
+
