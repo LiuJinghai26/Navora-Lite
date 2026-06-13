@@ -29,11 +29,11 @@ export function ChatPanel({ run }: { run: Run }) {
   };
 
   return (
-    <section className="min-h-[240px] rounded-lg border border-cyan-400/25 bg-panel p-4 shadow-glow">
+    <section className="min-h-[260px] rounded-lg border-2 border-cyan-400/40 bg-panel p-4 shadow-glow">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-white">Chat Panel</h2>
-          <p className="text-xs text-slate-500">{run.status === "running" ? "Running" : run.status}</p>
+          <h2 className="text-lg font-semibold text-white">Task Chat</h2>
+          <p className="text-sm text-slate-500">{run.status === "running" ? "Navora is controlling the browser" : `Status: ${run.status}`}</p>
         </div>
         <button
           className="inline-flex h-8 items-center gap-2 rounded-md border border-red-400/35 bg-red-500/10 px-3 text-xs font-semibold text-red-200 disabled:cursor-not-allowed disabled:opacity-45"
@@ -51,18 +51,18 @@ export function ChatPanel({ run }: { run: Run }) {
         ))}
       </div>
 
-      <div className="mt-4 flex gap-2 rounded-lg border border-stroke bg-[#050b14] p-2">
+      <div className="mt-4 flex gap-2 rounded-lg border-2 border-cyan-400/30 p-2 theme-input">
         <input
-          className="min-w-0 flex-1 bg-transparent px-2 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+          className="min-w-0 flex-1 bg-transparent px-3 text-base text-slate-100 outline-none placeholder:text-slate-500"
           value={task}
           onChange={(event) => setTask(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") submit();
           }}
-          placeholder="Ask Navora to control the browser..."
+          placeholder="Type a browser task for Navora..."
         />
         <button
-          className="grid h-9 w-9 place-items-center rounded-md bg-cyan-500 text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+          className="grid h-11 w-11 place-items-center rounded-md bg-cyan-500 text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
           onClick={submit}
           disabled={busy}
           aria-label="Send task"
@@ -73,4 +73,3 @@ export function ChatPanel({ run }: { run: Run }) {
     </section>
   );
 }
-

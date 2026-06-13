@@ -169,14 +169,15 @@ goto | click | fill | press | scroll | wait | extract | finish | ask_user
 
 `apps/server/app/llm/client.py` 的 `mock_plan` 返回固定 demo 路径：
 
-1. 打开 mock FindItParts 页面。
-2. 搜索 `FIRESTONE W01-377-8537`。
+1. 打开本地 mock storefront 页面。
+2. 搜索 `AURORA TASK LAMP`。
 3. 点击搜索按钮。
 4. 打开商品。
-5. 设置数量为 `1`。
-6. 加入购物车。
-7. 打开购物车。
-8. 提取 `{ product_name, quantity }`。
+5. 选择 `Warm White` 颜色。
+6. 设置数量为 `2`。
+7. 加入购物车。
+8. 打开购物车。
+9. 提取 `{ product_name, color, quantity, subtotal }`。
 
 当 `API_BASE` 为空、缺少必要 API key、模型超时、模型返回非法 JSON 或高风险动作时，后端使用 mock planner。
 
@@ -258,7 +259,7 @@ Content-Type: application/json
 
 ```json
 {
-  "task": "Add FIRESTONE W01-377-8537 to the cart and set quantity to 1",
+  "task": "Find the AURORA TASK LAMP, choose Warm White, set quantity to 2, add it to the cart, and extract the cart summary",
   "url": "http://localhost:8000/mock/findparts",
   "auto_start": true
 }
@@ -438,7 +439,7 @@ pnpm.cmd build
 ```powershell
 cd "E:\codex\Navora Lite\navora-lite"
 python scripts/run_demo.py `
-  --task "Add FIRESTONE W01-377-8537 to the cart and set quantity to 1" `
+  --task "Find the AURORA TASK LAMP, choose Warm White, set quantity to 2, add it to the cart, and extract the cart summary" `
   --url "http://localhost:8000/mock/findparts"
 ```
 
@@ -448,8 +449,10 @@ python scripts/run_demo.py `
 {
   "status": "completed",
   "extracted": {
-    "product_name": "FIRESTONE W01-377-8537",
-    "quantity": 1
+    "product_name": "AURORA TASK LAMP",
+    "color": "Warm White",
+    "quantity": 2,
+    "subtotal": "$178"
   }
 }
 ```
@@ -500,5 +503,5 @@ python scripts/run_demo.py `
 - 本地 JSON 存储不适合多用户或多实例部署。
 - 停止 run 是动作边界生效，不会强行中断正在执行的 Playwright 操作。
 - `BROWSER_CHANNEL` 配置当前没有传给 Playwright launch channel。
-- mock planner 是固定 FIRESTONE demo 路径，不具备通用站点规划能力。
+- mock planner 是固定 Aurora 台灯 demo 路径，不具备通用站点规划能力。
 - 安全检查是关键词级 guard，不是完整权限系统。

@@ -47,6 +47,14 @@ class RunsStore:
     def get_run(self, run_id: str) -> Run | None:
         return self._runs.get(run_id)
 
+    def delete_run(self, run_id: str) -> Run | None:
+        run = self._runs.pop(run_id, None)
+        if run is None:
+            return None
+        self._subscribers.pop(run_id, None)
+        self._save()
+        return run
+
     def update_run(self, run: Run, event: RunEvent | None = None) -> Run:
         self._runs[run.id] = run
         self._save()

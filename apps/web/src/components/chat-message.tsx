@@ -15,7 +15,7 @@ function ChecklistIcon({ status }: { status: string }) {
 export function ChatMessage({ message }: { message: ChatMessageType }) {
   const label = message.role === "user" ? "User" : message.role === "system" ? "System" : "Navora";
   return (
-    <div className="grid gap-2 rounded-lg border border-stroke bg-[#0b1424] p-3">
+    <div className="grid gap-2 rounded-lg border border-stroke p-3 shadow-sm theme-message">
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-semibold uppercase tracking-wide text-cyan-200">{label}</span>
         <span className="text-xs text-slate-500">{formatTime(message.createdAt)}</span>
@@ -34,4 +34,3 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
     </div>
   );
 }
-

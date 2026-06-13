@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>FindItParts Mock</title>
+    <title>OfficeMart Demo</title>
     <style>
       :root {
         color-scheme: dark;
@@ -94,16 +94,21 @@
         align-items: center;
         flex-wrap: wrap;
       }
+      .swatch {
+        border: 1px solid #38bdf8;
+        background: #1e293b;
+      }
+      .swatch.selected {
+        background: #f8e7d0;
+        color: #1f2937;
+      }
       #quantity {
         width: 88px;
       }
-      .checkout {
-        margin-top: 18px;
-        border-top: 1px solid #23344f;
-        padding-top: 18px;
-      }
-      .danger {
-        background: #7f1d1d;
+      .summary {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
       }
     </style>
   </head>
@@ -111,29 +116,35 @@
     <main>
       <header>
         <div>
-          <div class="brand">FindItParts Mock</div>
-          <p class="muted">Stable local commerce page for Navora Lite demos.</p>
+          <div class="brand">OfficeMart Demo</div>
+          <p class="muted">Stable local storefront for multi-step Navora Lite demos.</p>
         </div>
         <button id="cart-link" class="cart-link" type="button">Cart</button>
       </header>
 
       <section class="panel">
         <div class="search">
-          <input id="search-input" aria-label="Search input" placeholder="Search parts" />
+          <input id="search-input" aria-label="Search input" placeholder="Search workspace gear" />
           <button id="search-button" type="button">Search</button>
         </div>
 
         <article class="product" id="product-card">
-          <p class="muted">Product result</p>
-          <h1 data-product-name="FIRESTONE W01-377-8537">FIRESTONE W01-377-8537</h1>
-          <p>Air spring replacement part for demo automation.</p>
+          <p class="muted">Best match</p>
+          <h1 data-product-name="AURORA TASK LAMP">AURORA TASK LAMP</h1>
+          <p>Adjustable LED desk lamp for focused work sessions.</p>
           <button data-testid="product-link" id="product-link" type="button">Open product</button>
         </article>
 
         <article class="product" id="product-detail">
           <p class="muted">Product detail</p>
-          <h2>FIRESTONE W01-377-8537</h2>
+          <h2>AURORA TASK LAMP</h2>
+          <p>Unit price: <strong>$89</strong></p>
           <div class="row">
+            <span>Color</span>
+            <button class="swatch" id="color-graphite" type="button">Graphite</button>
+            <button class="swatch" id="color-warm-white" type="button">Warm White</button>
+          </div>
+          <div class="row" style="margin-top: 16px">
             <label for="quantity">Quantity</label>
             <input id="quantity" aria-label="Quantity" value="1" type="number" min="1" />
             <button id="add-to-cart" type="button">Add to Cart</button>
@@ -141,14 +152,21 @@
         </article>
 
         <article class="cart" id="cart-panel">
-          <p class="muted">Cart</p>
-          <h2 id="cart-product-name">FIRESTONE W01-377-8537</h2>
-          <p>
-            Quantity:
-            <strong id="cart-quantity" data-cart-quantity="1">1</strong>
-          </p>
-          <div class="checkout">
-            <button class="danger" type="button">Checkout</button>
+          <p class="muted">Cart summary</p>
+          <h2 id="cart-product-name">AURORA TASK LAMP</h2>
+          <div class="summary">
+            <span>
+              Color:
+              <strong id="cart-color" data-cart-color="Warm White">Warm White</strong>
+            </span>
+            <span>
+              Quantity:
+              <strong id="cart-quantity" data-cart-quantity="2">2</strong>
+            </span>
+            <span>
+              Subtotal:
+              <strong id="cart-subtotal" data-cart-subtotal="$178">$178</strong>
+            </span>
           </div>
         </article>
       </section>
@@ -159,6 +177,17 @@
       const cartPanel = document.querySelector("#cart-panel");
       const quantity = document.querySelector("#quantity");
       const cartQuantity = document.querySelector("#cart-quantity");
+      const cartColor = document.querySelector("#cart-color");
+      const cartSubtotal = document.querySelector("#cart-subtotal");
+      const warmWhite = document.querySelector("#color-warm-white");
+      const graphite = document.querySelector("#color-graphite");
+      let selectedColor = "Graphite";
+
+      function selectColor(value) {
+        selectedColor = value;
+        warmWhite.classList.toggle("selected", value === "Warm White");
+        graphite.classList.toggle("selected", value === "Graphite");
+      }
 
       document.querySelector("#search-button").addEventListener("click", () => {
         productCard.classList.add("visible");
@@ -166,10 +195,17 @@
       document.querySelector("#product-link").addEventListener("click", () => {
         productDetail.classList.add("visible");
       });
+      warmWhite.addEventListener("click", () => selectColor("Warm White"));
+      graphite.addEventListener("click", () => selectColor("Graphite"));
       document.querySelector("#add-to-cart").addEventListener("click", () => {
         const value = quantity.value || "1";
+        const subtotal = `$${Number.parseInt(value, 10) * 89}`;
+        cartColor.textContent = selectedColor;
+        cartColor.setAttribute("data-cart-color", selectedColor);
         cartQuantity.textContent = value;
         cartQuantity.setAttribute("data-cart-quantity", value);
+        cartSubtotal.textContent = subtotal;
+        cartSubtotal.setAttribute("data-cart-subtotal", subtotal);
         cartPanel.classList.add("visible");
       });
       document.querySelector("#cart-link").addEventListener("click", () => {
@@ -178,4 +214,3 @@
     </script>
   </body>
 </html>
-

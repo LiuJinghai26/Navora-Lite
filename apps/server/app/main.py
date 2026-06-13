@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import events, runs, settings as settings_api
+from app.api import events, runs, settings as settings_api, tasks
 from app.config import get_settings
 from app.storage.runs_store import RunsStore
 
@@ -25,6 +25,7 @@ app.mount("/artifacts", StaticFiles(directory=str(settings.artifacts_dir)), name
 app.state.runs_store = RunsStore(settings.run_storage_path)
 
 app.include_router(runs.router)
+app.include_router(tasks.router)
 app.include_router(events.router)
 app.include_router(settings_api.router)
 
@@ -37,4 +38,3 @@ async def health() -> dict[str, str]:
 @app.get("/mock/findparts", response_class=HTMLResponse)
 async def mock_findparts() -> str:
     return Path(__file__).with_name("mock_findparts.html").read_text(encoding="utf-8")
-

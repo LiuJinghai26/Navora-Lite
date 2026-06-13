@@ -124,7 +124,7 @@ http://localhost:3000/runs/demo
 ```bash
 cd navora-lite
 python scripts/run_demo.py \
-  --task "Add FIRESTONE W01-377-8537 to the cart and set quantity to 1" \
+  --task "Find the AURORA TASK LAMP, choose Warm White, set quantity to 2, add it to the cart, and extract the cart summary" \
   --url "http://localhost:8000/mock/findparts"
 ```
 
@@ -134,8 +134,10 @@ python scripts/run_demo.py \
 {
   "status": "completed",
   "extracted": {
-    "product_name": "FIRESTONE W01-377-8537",
-    "quantity": 1
+    "product_name": "AURORA TASK LAMP",
+    "color": "Warm White",
+    "quantity": 2,
+    "subtotal": "$178"
   }
 }
 ```
@@ -210,7 +212,7 @@ http://localhost:3000/runs/demo
 ```powershell
 cd navora-lite
 python scripts/run_demo.py `
-  --task "Add FIRESTONE W01-377-8537 to the cart and set quantity to 1" `
+  --task "Find the AURORA TASK LAMP, choose Warm White, set quantity to 2, add it to the cart, and extract the cart summary" `
   --url "http://localhost:8000/mock/findparts"
 ```
 
@@ -220,8 +222,10 @@ python scripts/run_demo.py `
 {
   "status": "completed",
   "extracted": {
-    "product_name": "FIRESTONE W01-377-8537",
-    "quantity": 1
+    "product_name": "AURORA TASK LAMP",
+    "color": "Warm White",
+    "quantity": 2,
+    "subtotal": "$178"
   }
 }
 ```
@@ -231,7 +235,7 @@ python scripts/run_demo.py `
 运行 demo：
 
 ```bash
-python scripts/run_demo.py --task "Add FIRESTONE W01-377-8537 to the cart and set quantity to 1" --url "http://localhost:8000/mock/findparts"
+python scripts/run_demo.py --task "Find the AURORA TASK LAMP, choose Warm White, set quantity to 2, add it to the cart, and extract the cart summary" --url "http://localhost:8000/mock/findparts"
 ```
 
 停止 run：
@@ -421,7 +425,7 @@ pnpm.cmd exec next dev -p 3001
 
 ### 没有模型配置时能运行吗？
 
-可以。默认 demo 会使用 mock planner，完成 FIRESTONE 商品数量提取任务。
+可以。默认 demo 会使用 mock planner，完成 Aurora 台灯购物车摘要提取任务。
 
 ## 说明
 

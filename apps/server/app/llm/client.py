@@ -4,13 +4,16 @@ from typing import Any
 import httpx
 
 from app.agent.actions import AgentAction
+from app.agent.presets import preset_plan
 from app.agent.safety import assert_safe_action
 from app.config import Settings
 from app.llm.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.llm.schemas import PlannerResult
 
 
-DEMO_PRODUCT = "FIRESTONE W01-377-8537"
+DEMO_PRODUCT = "AURORA TASK LAMP"
+DEMO_COLOR = "Warm White"
+DEMO_QUANTITY = "2"
 
 
 def mock_plan(start_url: str = "http://localhost:8000/mock/findparts") -> list[AgentAction]:
@@ -21,10 +24,11 @@ def mock_plan(start_url: str = "http://localhost:8000/mock/findparts") -> list[A
         AgentAction(type="fill", target="search input", value=DEMO_PRODUCT),
         AgentAction(type="click", target="search button"),
         AgentAction(type="click", target=f"product {DEMO_PRODUCT}"),
-        AgentAction(type="fill", target="quantity", value="1"),
+        AgentAction(type="click", target=f"color {DEMO_COLOR}"),
+        AgentAction(type="fill", target="quantity", value=DEMO_QUANTITY),
         AgentAction(type="click", target="add to cart"),
         AgentAction(type="click", target="cart"),
-        AgentAction(type="extract", schema={"product_name": "string", "quantity": "number"}),
+        AgentAction(type="extract", schema={"product_name": "string", "color": "string", "quantity": "number", "subtotal": "string"}),
     ]
 
 
@@ -45,7 +49,11 @@ def _parse_actions(content: str) -> list[AgentAction]:
     return actions
 
 
-async def plan_actions(task: str, url: str, settings: Settings) -> PlannerResult:
+async def plan_actions(task: str, url: str, settings: Settings, preset_id: str | None = None) -> PlannerResult:
+    preset_actions = preset_plan(preset_id)
+    if preset_actions:
+        return PlannerResult(preset_actions)
+
     start_url = url or "http://localhost:8000/mock/findparts"
     # Local model providers often omit API keys; hosted-compatible providers should not.
     if not settings.api_base:

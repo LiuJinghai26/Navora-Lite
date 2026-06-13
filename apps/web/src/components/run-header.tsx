@@ -1,6 +1,7 @@
 "use client";
 
 import { Code2, Download, RotateCw } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { rerun } from "@/lib/api";
 import type { Run } from "@/lib/types";
@@ -29,6 +30,7 @@ function formatDuration(ms?: number) {
 
 export function RunHeader({ run }: { run: Run }) {
   const [showApi, setShowApi] = useState(false);
+  const router = useRouter();
 
   const exportRun = () => {
     const blob = new Blob([JSON.stringify(run, null, 2)], { type: "application/json" });
@@ -42,11 +44,11 @@ export function RunHeader({ run }: { run: Run }) {
 
   const handleRerun = async () => {
     const response = await rerun(run.id);
-    window.location.href = `/runs/${response.run_id}`;
+    router.push(`/runs/${response.run_id}`);
   };
 
   return (
-    <header className="border-b border-stroke bg-[#081220]/90 px-6 py-4">
+    <header className="border-b border-stroke bg-panel/90 px-6 py-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">
@@ -86,9 +88,9 @@ export function RunHeader({ run }: { run: Run }) {
       </div>
 
       {showApi ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-5" onClick={() => setShowApi(false)}>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-5 backdrop-blur-sm" onClick={() => setShowApi(false)}>
           <div
-            className="w-full max-w-2xl rounded-lg border border-stroke bg-panel p-5 shadow-2xl"
+            className="w-full max-w-2xl rounded-lg border-2 border-cyan-400/40 bg-panel p-5 shadow-glow"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -97,7 +99,7 @@ export function RunHeader({ run }: { run: Run }) {
                 Close
               </button>
             </div>
-            <pre className="overflow-auto rounded-md bg-[#050b14] p-4 text-xs text-cyan-100">
+            <pre className="overflow-auto rounded-md p-4 text-xs text-cyan-100 theme-input">
 {`curl -X POST http://localhost:8000/api/runs \\
   -H "Content-Type: application/json" \\
   -d '{"task":"${run.task}","url":"${run.url}"}'`}
@@ -108,4 +110,3 @@ export function RunHeader({ run }: { run: Run }) {
     </header>
   );
 }
-

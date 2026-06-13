@@ -5,14 +5,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        surface: "#07111f",
-        panel: "#0d1728",
-        panelSoft: "#111f34",
-        stroke: "#23344f",
-        cyanEdge: "#22d3ee"
+        surface: "var(--color-surface)",
+        panel: "var(--color-panel)",
+        panelSoft: "var(--color-panel-soft)",
+        stroke: "var(--color-stroke)",
+        cyanEdge: "var(--color-accent)"
       },
       boxShadow: {
-        glow: "0 0 32px rgba(34, 211, 238, 0.12)"
+        glow: "var(--shadow-glow)"
       }
     }
   },
@@ -20,4 +20,3 @@ const config: Config = {
 };
 
 export default config;
-

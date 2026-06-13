@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">
+  <rect width="1280" height="800" fill="#07111f"/>
+  <rect x="72" y="64" width="1136" height="672" rx="24" fill="#0d1728" stroke="#22d3ee" stroke-width="2"/>
+  <text x="112" y="132" fill="#e5f6ff" font-family="Arial" font-size="44" font-weight="700">OfficeMart Demo</text>
+  <text x="112" y="184" fill="#7dd3fc" font-family="Arial" font-size="26">Step 9: Extract structured output</text>
+  <rect x="112" y="238" width="520" height="390" rx="18" fill="#0b2334" stroke="#22d3ee"/>
+  <text x="152" y="306" fill="#94a3b8" font-family="Arial" font-size="22">Cart summary</text>
+  <text x="152" y="368" fill="#e5f6ff" font-family="Arial" font-size="34" font-weight="700">AURORA TASK LAMP</text>
+  <text x="152" y="426" fill="#f8fafc" font-family="Arial" font-size="24">Color: Warm White</text>
+  <text x="152" y="476" fill="#f8fafc" font-family="Arial" font-size="24">Quantity: 2</text>
+  <text x="152" y="526" fill="#34d399" font-family="Arial" font-size="28" font-weight="700">Subtotal: $178</text>
+  <rect x="682" y="238" width="410" height="390" rx="18" fill="#111f34" stroke="#2a405f"/>
+  <text x="722" y="312" fill="#7dd3fc" font-family="Consolas, monospace" font-size="24">{</text>
+  <text x="752" y="362" fill="#e5f6ff" font-family="Consolas, monospace" font-size="22">"product_name": "AURORA TASK LAMP",</text>
+  <text x="752" y="412" fill="#e5f6ff" font-family="Consolas, monospace" font-size="22">"color": "Warm White",</text>
+  <text x="752" y="462" fill="#e5f6ff" font-family="Consolas, monospace" font-size="22">"quantity": 2,</text>
+  <text x="752" y="512" fill="#e5f6ff" font-family="Consolas, monospace" font-size="22">"subtotal": "$178"</text>
+  <text x="722" y="562" fill="#7dd3fc" font-family="Consolas, monospace" font-size="24">}</text>
+</svg>

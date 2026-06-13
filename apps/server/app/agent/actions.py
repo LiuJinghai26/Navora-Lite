@@ -35,9 +35,9 @@ def describe_action(action: AgentAction) -> str:
     if action.type == "scroll":
         return f"Scroll {action.direction}"
     if action.type == "wait":
-        return f"Wait {action.ms or 500}ms"
+        return action.condition or f"Wait {action.ms or 500}ms"
     if action.type == "extract":
-        return "Extract information"
+        return f"Extract {action.target}" if action.target else "Extract information"
     if action.type == "finish":
         return "Finish run"
     return action.message or "Ask user"
@@ -50,7 +50,8 @@ def target_to_selector(target: str | None) -> str | None:
     mapping = {
         "search input": "#search-input",
         "search button": "#search-button",
-        "product firestone w01-377-8537": "[data-testid='product-link']",
+        "product aurora task lamp": "[data-testid='product-link']",
+        "color warm white": "#color-warm-white",
         "quantity": "#quantity",
         "add to cart": "#add-to-cart",
         "cart": "#cart-link",

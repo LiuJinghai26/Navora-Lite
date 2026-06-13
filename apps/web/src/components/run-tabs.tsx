@@ -1,9 +1,10 @@
 "use client";
 
 import clsx from "clsx";
+import { useEffect, useMemo, useState } from "react";
 import { API_BASE } from "@/lib/api";
 import { useRunStore } from "@/lib/store";
-import type { Run } from "@/lib/types";
+import type { Run, TimelineStep } from "@/lib/types";
 import { BrowserPreview } from "./browser-preview";
 import { ExecutionTimeline } from "./execution-timeline";
 import { ExtractedInformation } from "./extracted-information";
@@ -50,6 +51,23 @@ function CodePanel({ run }: { run: Run }) {
 export function RunTabs({ run }: { run: Run }) {
   const activeTab = useRunStore((state) => state.activeTab);
   const setActiveTab = useRunStore((state) => state.setActiveTab);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const selectedStep = useMemo(
+    () => run.timeline.find((step) => step.id === selectedStepId && step.screenshotUrl),
+    [run.timeline, selectedStepId]
+  );
+
+  useEffect(() => {
+    if (run.status === "running") {
+      setSelectedStepId(null);
+    }
+  }, [run.screenshots.length, run.status]);
+
+  const selectTimelineStep = (step: TimelineStep) => {
+    setSelectedStepId(step.id);
+    setActiveTab("Overview");
+    document.getElementById("browser-preview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <section className="grid gap-4">
@@ -71,10 +89,15 @@ export function RunTabs({ run }: { run: Run }) {
       {activeTab === "Overview" ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.85fr)]">
           <div className="grid gap-4">
-            <BrowserPreview run={run} />
+            <BrowserPreview
+              run={run}
+              imageUrl={selectedStep?.screenshotUrl}
+              imageTitle={selectedStep?.description}
+              live={!selectedStep}
+            />
             <ExtractedInformation data={run.extracted} />
           </div>
-          <ExecutionTimeline steps={run.timeline} />
+          <ExecutionTimeline steps={run.timeline} selectedStepId={selectedStepId} onSelectStep={selectTimelineStep} />
         </div>
       ) : null}
       {activeTab === "Output" ? <JsonPanel data={run.extracted ?? {}} /> : null}
@@ -84,4 +107,3 @@ export function RunTabs({ run }: { run: Run }) {
     </section>
   );
 }
-

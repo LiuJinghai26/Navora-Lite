@@ -1,13 +1,13 @@
 "use client";
 
 import clsx from "clsx";
-import { Bot, Home, Monitor, Play, Settings } from "lucide-react";
+import { Home, ListChecks, Monitor, Play, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const nav = [
   { label: "Home", href: "/runs/demo", icon: Home },
-  { label: "Agents", href: "/agents", icon: Bot },
+  { label: "Tasks", href: "/tasks", icon: ListChecks },
   { label: "Runs", href: "/runs/demo", icon: Play },
   { label: "Sessions", href: "/sessions", icon: Monitor },
   { label: "Settings", href: "/settings", icon: Settings }
@@ -17,7 +17,7 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-full shrink-0 flex-col border-b border-stroke bg-[#07101c]/95 px-4 py-4 md:min-h-screen md:w-[244px] md:border-b-0 md:border-r md:py-5">
+    <aside className="flex w-full shrink-0 flex-col border-b border-stroke px-4 py-4 md:sticky md:top-0 md:h-screen md:w-[244px] md:overflow-y-auto md:border-b-0 md:border-r md:py-5" style={{ background: "var(--color-sidebar)" }}>
       <Link href="/runs/demo" className="mb-4 flex items-center gap-3 md:mb-7">
         <span className="relative grid h-10 w-10 place-items-center rounded-lg border border-cyan-400/40 bg-cyan-400/10 shadow-glow">
           <span className="absolute h-5 w-5 rotate-45 border-l-2 border-t-2 border-cyan-200" />
@@ -31,7 +31,10 @@ export function AppSidebar() {
 
       <nav className="grid grid-cols-2 gap-2 sm:grid-cols-5 md:block md:space-y-1">
         {nav.map((item) => {
-          const active = pathname === item.href || (item.label === "Runs" && pathname.startsWith("/runs"));
+          const active =
+            pathname === item.href ||
+            (item.label === "Runs" && pathname.startsWith("/runs")) ||
+            (item.label === "Tasks" && (pathname.startsWith("/tasks") || pathname.startsWith("/agents")));
           const Icon = item.icon;
           return (
             <Link

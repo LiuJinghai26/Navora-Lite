@@ -3,14 +3,14 @@ import { CheckCircle2, CircleDashed, OctagonAlert, PauseCircle } from "lucide-re
 import type { RunStatus, StepStatus } from "@/lib/types";
 
 const styles: Record<string, string> = {
-  idle: "border-slate-600 bg-slate-800/60 text-slate-300",
-  pending: "border-slate-600 bg-slate-800/60 text-slate-300",
+  idle: "border-stroke bg-panelSoft text-slate-400",
+  pending: "border-stroke bg-panelSoft text-slate-400",
   running: "border-sky-500/50 bg-sky-500/15 text-sky-200",
   completed: "border-emerald-500/50 bg-emerald-500/15 text-emerald-200",
   success: "border-emerald-500/50 bg-emerald-500/15 text-emerald-200",
   failed: "border-red-500/50 bg-red-500/15 text-red-200",
   stopped: "border-amber-500/50 bg-amber-500/15 text-amber-200",
-  skipped: "border-slate-600 bg-slate-800/60 text-slate-300"
+  skipped: "border-stroke bg-panelSoft text-slate-400"
 };
 
 export function StatusBadge({ status }: { status: RunStatus | StepStatus | "controlling" }) {
@@ -36,4 +36,3 @@ export function StatusBadge({ status }: { status: RunStatus | StepStatus | "cont
     </span>
   );
 }
-

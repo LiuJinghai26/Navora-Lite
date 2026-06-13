@@ -14,10 +14,20 @@ function absoluteImageUrl(url?: string) {
   return `${API_BASE}${url}`;
 }
 
-export function BrowserPreview({ run }: { run: Run }) {
+export function BrowserPreview({
+  run,
+  imageUrl,
+  imageTitle,
+  live = true
+}: {
+  run: Run;
+  imageUrl?: string;
+  imageTitle?: string;
+  live?: boolean;
+}) {
   const [fullscreen, setFullscreen] = useState(false);
   const latest = run.screenshots[run.screenshots.length - 1];
-  const imageUrl = useMemo(() => absoluteImageUrl(latest?.imageUrl), [latest?.imageUrl]);
+  const resolvedImageUrl = useMemo(() => absoluteImageUrl(imageUrl || latest?.imageUrl), [imageUrl, latest?.imageUrl]);
 
   const stop = async () => {
     if (run.id !== "demo") {
@@ -26,9 +36,12 @@ export function BrowserPreview({ run }: { run: Run }) {
   };
 
   return (
-    <section className="rounded-lg border border-stroke bg-panel">
+    <section id="browser-preview" className="rounded-lg border border-stroke bg-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke px-4 py-3">
-        <h2 className="text-sm font-semibold text-white">Browser Preview</h2>
+        <div>
+          <h2 className="text-sm font-semibold text-white">Browser Preview</h2>
+          <p className="mt-1 text-xs text-slate-500">{live ? "Live latest screenshot" : imageTitle || "Selected timeline screenshot"}</p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             className="grid h-8 w-8 place-items-center rounded-md border border-stroke bg-panelSoft text-slate-200 hover:border-cyan-400/50"
@@ -48,10 +61,10 @@ export function BrowserPreview({ run }: { run: Run }) {
           </button>
         </div>
       </div>
-      <div className="aspect-video bg-[#050b14] p-3">
-        <img className="h-full w-full rounded-md object-cover" src={imageUrl} alt="Browser preview screenshot" />
+      <div className="aspect-video p-3 theme-input">
+        <img className="h-full w-full rounded-md object-cover" src={resolvedImageUrl} alt="Browser preview screenshot" />
       </div>
-      <FullscreenPreviewDialog open={fullscreen} imageUrl={imageUrl} onClose={() => setFullscreen(false)} />
+      <FullscreenPreviewDialog open={fullscreen} imageUrl={resolvedImageUrl} onClose={() => setFullscreen(false)} />
     </section>
   );
 }

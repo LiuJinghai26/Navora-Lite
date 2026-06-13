@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
+from app.agent.presets import PRESET_TASKS
 from app.agent.runner import run_agent
 from app.config import get_settings
 from app.models import ChatMessage, CreateRunRequest, CreateRunResponse, Run
@@ -10,9 +11,17 @@ from app.models import ChatMessage, CreateRunRequest, CreateRunResponse, Run
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 
-def _title_for_task(task: str) -> str:
-    if "FIRESTONE W01-377-8537" in task.upper():
-        return "Add Product and Extract Quantity"
+def _title_for_task(task: str, preset_id: str | None = None) -> str:
+    if preset_id and preset_id in PRESET_TASKS:
+        return str(PRESET_TASKS[preset_id]["title"])
+    if "HACKER NEWS" in task.upper():
+        return "Hacker News Top Story"
+    if "WIKIPEDIA" in task.upper() and "PYTHON" in task.upper():
+        return "Wikipedia Python Summary"
+    if "MDN" in task.upper():
+        return "MDN Web API Research"
+    if "AURORA TASK LAMP" in task.upper():
+        return "Configure Desk Lamp Cart"
     return task.strip()[:72] or "Browser Agent Run"
 
 
@@ -27,7 +36,7 @@ async def create_run(payload: CreateRunRequest, request: Request, background_tas
     run_id = f"run_{uuid4().hex[:18]}"
     run = Run(
         id=run_id,
-        title=_title_for_task(payload.task),
+        title=_title_for_task(payload.task, payload.preset_id),
         task=payload.task,
         url=payload.url,
         status="idle",
@@ -37,6 +46,7 @@ async def create_run(payload: CreateRunRequest, request: Request, background_tas
             "url": payload.url,
             "model": settings.model_name,
             "browser": settings.browser_channel,
+            "preset_id": payload.preset_id,
         },
         messages=[
             ChatMessage(
@@ -54,7 +64,7 @@ async def create_run(payload: CreateRunRequest, request: Request, background_tas
     return CreateRunResponse(run_id=run_id, status="running" if payload.auto_start else "idle")
 
 
-@router.get("")
+@router.get("", response_model=list[Run])
 async def list_runs(request: Request) -> list[Run]:
     return request.app.state.runs_store.list_runs()
 
@@ -80,6 +90,12 @@ async def rerun(run_id: str, request: Request, background_tasks: BackgroundTasks
     old_run = request.app.state.runs_store.get_run(run_id)
     if old_run is None:
         raise HTTPException(status_code=404, detail="Run not found")
-    payload = CreateRunRequest(task=old_run.task, url=old_run.url, auto_start=True)
+    preset_id = old_run.inputs.get("preset_id")
+    payload = CreateRunRequest(
+        task=old_run.task,
+        url=old_run.url,
+        auto_start=True,
+        preset_id=str(preset_id) if preset_id else None,
+    )
     response = await create_run(payload, request, background_tasks)
     return response

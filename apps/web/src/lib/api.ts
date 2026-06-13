@@ -13,6 +13,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }
+  if (response.status === 204) {
+    return undefined as T;
+  }
   return response.json() as Promise<T>;
 }
 
@@ -20,10 +23,22 @@ export async function getRun(runId: string): Promise<Run> {
   return request<Run>(`/api/runs/${runId}`);
 }
 
-export async function createRun(task: string, url = "http://localhost:8000/mock/findparts"): Promise<CreateRunResponse> {
+export async function getTasks(): Promise<Run[]> {
+  return request<Run[]>("/api/tasks");
+}
+
+export async function deleteTask(runId: string): Promise<void> {
+  await request<void>(`/api/tasks/${runId}`, { method: "DELETE" });
+}
+
+export async function createRun(
+  task: string,
+  url = "http://localhost:8000/mock/findparts",
+  presetId?: string
+): Promise<CreateRunResponse> {
   return request<CreateRunResponse>("/api/runs", {
     method: "POST",
-    body: JSON.stringify({ task, url })
+    body: JSON.stringify({ task, url, preset_id: presetId })
   });
 }
 
@@ -45,4 +60,3 @@ export async function saveSettings(payload: Record<string, unknown>): Promise<Re
     body: JSON.stringify(payload)
   });
 }
-

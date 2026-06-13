@@ -27,19 +27,25 @@ def artifact_url(settings: Settings, path: Path) -> str:
 
 def step_to_checklist(action: AgentAction) -> str:
     if action.type == "goto":
-        return "Open mock FindItParts page"
+        return f"Open {action.url or 'the target page'}"
+    if action.type == "wait":
+        return action.condition or "Wait for the page to settle"
+    if action.type == "extract" and action.target:
+        return f"Extract {action.target}"
     if action.type == "fill" and (action.target or "").lower() == "search input":
-        return 'Searching for product "FIRESTONE W01-377-8537"'
+        return f'Search for "{action.value or "the demo product"}"'
     if action.type == "click" and "product" in (action.target or "").lower():
         return "Open product page and locate item"
+    if action.type == "click" and "color" in (action.target or "").lower():
+        return "Choose the requested product color"
     if action.type == "fill" and (action.target or "").lower() == "quantity":
-        return "Set quantity to 1"
+        return f"Set quantity to {action.value or 'the requested amount'}"
     if action.type == "click" and (action.target or "").lower() == "add to cart":
-        return "Added product to cart with quantity 1"
+        return "Add the configured product to cart"
     if action.type == "click" and (action.target or "").lower() == "cart":
         return "Open cart page"
     if action.type == "extract":
-        return "Extract quantity from cart"
+        return "Extract cart summary"
     return describe_action(action)
 
 
@@ -54,7 +60,8 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
     run.startedAt = now_iso()
     store.set_status(run_id, "running")
 
-    planner = await plan_actions(run.task, run.url, settings)
+    preset_id = run.inputs.get("preset_id")
+    planner = await plan_actions(run.task, run.url, settings, preset_id=str(preset_id) if preset_id else None)
     run = store.get_run(run_id)
     if run is None:
         return
@@ -92,7 +99,7 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
         ChatMessage(
             id=f"msg_{uuid4().hex[:10]}",
             role="assistant",
-            content="On it. I will search for the product, add it to the cart with quantity 1, then extract the cart quantity.",
+            content="On it. I will follow the preset browser steps, capture screenshots, and extract the requested information.",
             createdAt=now_iso(),
             checklist=checklist,
         ),
@@ -173,7 +180,7 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
             ChatMessage(
                 id=f"msg_{uuid4().hex[:10]}",
                 role="assistant",
-                content="Done. The product has been added and the quantity is 1.",
+                content="Done. The preset browser task finished and the extracted data is ready.",
                 createdAt=now_iso(),
             ),
         )

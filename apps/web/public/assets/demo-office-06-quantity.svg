@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">
+  <rect width="1280" height="800" fill="#07111f"/>
+  <rect x="72" y="64" width="1136" height="672" rx="24" fill="#0d1728" stroke="#22d3ee" stroke-width="2"/>
+  <text x="112" y="132" fill="#e5f6ff" font-family="Arial" font-size="44" font-weight="700">OfficeMart Demo</text>
+  <text x="112" y="184" fill="#7dd3fc" font-family="Arial" font-size="26">Step 6: Set quantity</text>
+  <rect x="112" y="240" width="980" height="360" rx="18" fill="#0b2334" stroke="#22d3ee"/>
+  <text x="152" y="316" fill="#e5f6ff" font-family="Arial" font-size="40" font-weight="700">AURORA TASK LAMP</text>
+  <text x="152" y="382" fill="#94a3b8" font-family="Arial" font-size="24">Warm White | Unit price: $89</text>
+  <rect x="152" y="440" width="112" height="64" rx="12" fill="#111f34" stroke="#22d3ee"/>
+  <text x="198" y="482" fill="#f8fafc" font-family="Arial" font-size="30" font-weight="700">2</text>
+  <rect x="292" y="440" width="180" height="64" rx="12" fill="#0284c7"/>
+  <text x="326" y="480" fill="#ffffff" font-family="Arial" font-size="22" font-weight="700">Add to Cart</text>
+</svg>
