@@ -9,6 +9,132 @@ from app.config import Settings
 DEMO_PRODUCT = "AURORA TASK LAMP"
 DEMO_COLOR = "Warm White"
 DEMO_PRICE = 89
+PRESET_NAVIGATION_TIMEOUT_MS = 10000
+
+
+def preset_fallback_html(url: str | None) -> str | None:
+    if url == "https://news.ycombinator.com/":
+        return """<!doctype html>
+<html>
+<head>
+  <title>Hacker News</title>
+  <style>
+    body { margin: 0; background: #f6f6ef; color: #000; font-family: Verdana, Geneva, sans-serif; }
+    .bar { background: #ff6600; padding: 8px 12px; font-weight: bold; }
+    table { width: 100%; max-width: 1120px; margin: 12px auto; border-collapse: collapse; }
+    td { padding: 4px 6px; font-size: 14px; }
+    .titleline a { color: #000; text-decoration: none; font-size: 16px; }
+    .subtext, .subtext a, .sitebit { color: #828282; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div class="bar">Hacker News</div>
+  <table>
+    <tr class="athing" id="preset-hn-story">
+      <td class="title" align="right">1.</td>
+      <td class="title">
+        <span class="titleline">
+          <a href="https://example.com/offline-browser-agent-demo">Offline-first browser agents for reliable demos</a>
+        </span>
+        <span class="sitebit comhead"> (example.com) </span>
+      </td>
+    </tr>
+    <tr>
+      <td></td>
+      <td class="subtext">
+        <span class="score">348 points</span>
+        <span class="age">2 hours ago</span>
+        <a href="item?id=preset-hn-story">96 comments</a>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+    if url == "https://en.wikipedia.org/wiki/Python_(programming_language)":
+        return """<!doctype html>
+<html>
+<head>
+  <title>Python (programming language) - Wikipedia</title>
+  <style>
+    body { margin: 0; background: #fff; color: #202122; font-family: Arial, sans-serif; }
+    main { max-width: 1180px; margin: 0 auto; padding: 32px 48px; }
+    h1 { border-bottom: 1px solid #a2a9b1; font-family: Georgia, serif; font-size: 40px; font-weight: normal; }
+    p { font-size: 18px; line-height: 1.65; max-width: 760px; }
+    .infobox { float: right; width: 320px; margin-left: 32px; border: 1px solid #a2a9b1; border-collapse: collapse; background: #f8f9fa; }
+    .infobox th, .infobox td { border: 1px solid #a2a9b1; padding: 8px; text-align: left; }
+    .infobox caption { font-size: 22px; font-weight: bold; padding: 10px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 id="firstHeading">Python (programming language)</h1>
+    <table class="infobox">
+      <caption>Python</caption>
+      <tr><th>Designed by</th><td>Guido van Rossum</td></tr>
+      <tr><th>First appeared</th><td>20 February 1991</td></tr>
+      <tr><th>Typing discipline</th><td>Duck, dynamic, strong typing</td></tr>
+    </table>
+    <div id="mw-content-text">
+      <div class="mw-parser-output">
+        <p>Python is a high-level, general-purpose programming language. Its design philosophy emphasizes code readability with the use of significant indentation.</p>
+        <p>Python is dynamically typed and garbage-collected. It supports multiple programming paradigms, including structured, object-oriented, and functional programming.</p>
+      </div>
+    </div>
+  </main>
+</body>
+</html>"""
+    if url == "https://developer.mozilla.org/en-US/docs/Web/API":
+        return """<!doctype html>
+<html>
+<head>
+  <title>Web APIs | MDN</title>
+  <style>
+    body { margin: 0; background: #fff; color: #1b1b1b; font-family: Inter, Arial, sans-serif; }
+    main { max-width: 1100px; margin: 0 auto; padding: 40px 48px; }
+    h1 { font-size: 48px; margin-bottom: 16px; }
+    p { font-size: 19px; line-height: 1.6; max-width: 820px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 28px; }
+    a { border: 1px solid #d8dee4; border-radius: 8px; color: #0069c2; display: block; padding: 18px; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Web APIs</h1>
+    <p>Web APIs are interfaces exposed by browsers and related platforms that let developers build interactive web applications, access device capabilities, and communicate with network resources.</p>
+    <div class="grid">
+      <a href="/en-US/docs/Web/API/Fetch_API">Fetch API</a>
+      <a href="/en-US/docs/Web/API/Canvas_API">Canvas API</a>
+      <a href="/en-US/docs/Web/API/Document_Object_Model">Document Object Model</a>
+      <a href="/en-US/docs/Web/API/Web_Storage_API">Web Storage API</a>
+    </div>
+  </main>
+</body>
+</html>"""
+    if url == "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API":
+        return """<!doctype html>
+<html>
+<head>
+  <title>Fetch API - Web APIs | MDN</title>
+  <style>
+    body { margin: 0; background: #fff; color: #1b1b1b; font-family: Inter, Arial, sans-serif; }
+    main { max-width: 980px; margin: 0 auto; padding: 40px 48px; }
+    h1 { font-size: 48px; margin-bottom: 16px; }
+    h2 { border-top: 1px solid #d8dee4; margin-top: 32px; padding-top: 24px; }
+    p { font-size: 19px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Fetch API</h1>
+    <p>The Fetch API provides an interface for fetching resources across the network. It is a modern replacement for many XMLHttpRequest use cases and is built around promises.</p>
+    <h2>Concepts and usage</h2>
+    <h2>Interfaces</h2>
+    <h2>Examples</h2>
+    <h2>Specifications</h2>
+  </main>
+</body>
+</html>"""
+    return None
 
 
 class BrowserSession:
@@ -135,7 +261,7 @@ class PlaywrightBrowserSession(BrowserSession):
 
     async def execute(self, action: AgentAction) -> Any:
         if action.type == "goto" and action.url:
-            await self.page.goto(action.url, wait_until="domcontentloaded", timeout=45000)
+            await self._goto(action.url)
         elif action.type == "fill":
             selector = action.selector or target_to_selector(action.target)
             if selector and action.value is not None:
@@ -218,6 +344,26 @@ class PlaywrightBrowserSession(BrowserSession):
             }"""
         )
 
+    async def _goto(self, url: str) -> None:
+        fallback_html = preset_fallback_html(url)
+        timeout = PRESET_NAVIGATION_TIMEOUT_MS if fallback_html else 45000
+        try:
+            await self.page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+        except Exception:
+            if not fallback_html:
+                raise
+            await self._goto_preset_fallback(url, fallback_html)
+
+    async def _goto_preset_fallback(self, url: str, body: str) -> None:
+        async def fulfill(route: Any) -> None:
+            await route.fulfill(status=200, content_type="text/html", body=body)
+
+        await self.page.route(url, fulfill)
+        try:
+            await self.page.goto(url, wait_until="domcontentloaded", timeout=PRESET_NAVIGATION_TIMEOUT_MS)
+        finally:
+            await self.page.unroute(url, fulfill)
+
     async def _extract_wikipedia_python_summary(self) -> Any:
         return await self.page.evaluate(
             """() => {
@@ -287,7 +433,7 @@ class PlaywrightBrowserSession(BrowserSession):
 
     async def screenshot(self, path: Path, label: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        await self.page.screenshot(path=str(path), full_page=True)
+        await self.page.screenshot(path=str(path), full_page=False)
 
     async def close(self) -> None:
         await self.browser.close()

@@ -61,8 +61,8 @@ export function BrowserPreview({
           </button>
         </div>
       </div>
-      <div className="aspect-video p-3 theme-input">
-        <img className="h-full w-full rounded-md object-cover" src={resolvedImageUrl} alt="Browser preview screenshot" />
+      <div className="aspect-video overflow-hidden p-3 theme-input">
+        <img className="h-full w-full rounded-md object-contain" src={resolvedImageUrl} alt="Browser preview screenshot" />
       </div>
       <FullscreenPreviewDialog open={fullscreen} imageUrl={resolvedImageUrl} onClose={() => setFullscreen(false)} />
     </section>

@@ -1,3 +1,4 @@
+from app.agent.browser import preset_fallback_html
 from app.agent.presets import preset_plan
 from app.llm.client import mock_plan
 
@@ -43,3 +44,15 @@ def test_preset_planner_outputs_mdn_sequence():
     assert actions[3].url == "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
     assert actions[2].target == "mdn web api overview"
     assert actions[5].target == "mdn fetch api detail"
+
+
+def test_preset_fallback_pages_support_extractors():
+    hacker_news = preset_fallback_html("https://news.ycombinator.com/")
+    wikipedia = preset_fallback_html("https://en.wikipedia.org/wiki/Python_(programming_language)")
+    mdn_index = preset_fallback_html("https://developer.mozilla.org/en-US/docs/Web/API")
+    mdn_fetch = preset_fallback_html("https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API")
+
+    assert hacker_news is not None and "class=\"athing\"" in hacker_news
+    assert wikipedia is not None and "id=\"firstHeading\"" in wikipedia
+    assert mdn_index is not None and "/Web/API/Fetch_API" in mdn_index
+    assert mdn_fetch is not None and "<h1>Fetch API</h1>" in mdn_fetch

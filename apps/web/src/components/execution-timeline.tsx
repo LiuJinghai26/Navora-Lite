@@ -1,12 +1,12 @@
 import clsx from "clsx";
-import { CheckCircle2, CircleDashed, Clock3, ImageIcon, OctagonAlert, PauseCircle } from "lucide-react";
+import { CheckCircle2, CircleDashed, ImageIcon, OctagonAlert, PauseCircle } from "lucide-react";
 import type { StepStatus, TimelineStep } from "@/lib/types";
 
 function iconFor(status: StepStatus) {
   if (status === "success") return <CheckCircle2 className="h-4 w-4 text-emerald-300" />;
   if (status === "failed") return <OctagonAlert className="h-4 w-4 text-red-300" />;
   if (status === "stopped") return <PauseCircle className="h-4 w-4 text-amber-300" />;
-  if (status === "running") return <Clock3 className="h-4 w-4 text-sky-300" />;
+  if (status === "running") return <CircleDashed className="h-4 w-4 animate-spin text-emerald-300" />;
   return <CircleDashed className="h-4 w-4 text-slate-500" />;
 }
 
