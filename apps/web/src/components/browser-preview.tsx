@@ -36,7 +36,7 @@ export function BrowserPreview({
   };
 
   return (
-    <section id="browser-preview" className="rounded-lg border border-stroke bg-panel">
+    <section id="browser-preview" className="min-w-0 rounded-lg border border-stroke bg-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold text-white">Browser Preview</h2>

@@ -87,8 +87,8 @@ export function RunTabs({ run }: { run: Run }) {
       </div>
 
       {activeTab === "Overview" ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.85fr)]">
-          <div className="grid gap-4">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.85fr)]">
+          <div className="grid min-w-0 gap-4">
             <BrowserPreview
               run={run}
               imageUrl={selectedStep?.screenshotUrl}

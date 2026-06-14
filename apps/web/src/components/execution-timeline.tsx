@@ -30,7 +30,7 @@ export function ExecutionTimeline({
   onSelectStep?: (step: TimelineStep) => void;
 }) {
   return (
-    <section className="rounded-lg border border-stroke bg-panel">
+    <section className="min-w-0 rounded-lg border border-stroke bg-panel">
       <div className="border-b border-stroke px-4 py-3">
         <h2 className="text-sm font-semibold text-white">Execution Timeline</h2>
       </div>
@@ -40,7 +40,7 @@ export function ExecutionTimeline({
             <button
               key={step.id}
               className={clsx(
-                "grid w-full grid-cols-[22px_1fr_auto] items-center gap-2 rounded-md border p-3 text-left transition theme-message",
+                "grid w-full grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border p-3 text-left transition theme-message",
                 step.screenshotUrl ? "hover:border-cyan-400/50" : "cursor-default",
                 selectedStepId === step.id ? "border-cyan-400/70 shadow-glow" : "border-stroke"
               )}

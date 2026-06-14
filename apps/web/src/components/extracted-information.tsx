@@ -15,7 +15,7 @@ export function ExtractedInformation({ data }: { data: unknown }) {
   };
 
   return (
-    <section className="rounded-lg border border-stroke bg-panel">
+    <section className="min-w-0 rounded-lg border border-stroke bg-panel">
       <div className="flex items-center justify-between border-b border-stroke px-4 py-3">
         <h2 className="text-sm font-semibold text-white">Extracted Information</h2>
         <button
@@ -26,13 +26,13 @@ export function ExtractedInformation({ data }: { data: unknown }) {
           {copied ? "Copied" : "Copy JSON"}
         </button>
       </div>
-      <div className="overflow-auto p-4">
+      <div className="min-w-0 overflow-auto p-4">
         {data ? (
-          <pre className="grid gap-0.5 text-sm leading-6 text-cyan-100">
+          <pre className="grid min-w-0 gap-0.5 text-sm leading-6 text-cyan-100">
             {lines.map((line, index) => (
-              <code key={`${line}-${index}`} className="grid grid-cols-[40px_1fr] gap-3">
+              <code key={`${line}-${index}`} className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] gap-3">
                 <span className="select-none text-right text-slate-600">{index + 1}</span>
-                <span>{line}</span>
+                <span className="min-w-0">{line}</span>
               </code>
             ))}
           </pre>
@@ -43,4 +43,3 @@ export function ExtractedInformation({ data }: { data: unknown }) {
     </section>
   );
 }
-
