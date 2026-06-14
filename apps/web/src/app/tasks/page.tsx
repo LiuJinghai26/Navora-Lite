@@ -46,6 +46,7 @@ export default function TasksPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | RunStatus>("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingAll, setDeletingAll] = useState(false);
   const [startingPresetId, setStartingPresetId] = useState<string | null>(null);
 
   const visibleTasks = useMemo(
@@ -84,6 +85,22 @@ export default function TasksPage() {
     }
   };
 
+  const removeAllTasks = async () => {
+    if (tasks.length === 0) return;
+    const confirmed = window.confirm(`Delete all ${tasks.length} tasks? This removes local run history.`);
+    if (!confirmed) return;
+    setDeletingAll(true);
+    setError("");
+    try {
+      await Promise.all(tasks.map((task) => deleteTask(task.id)));
+      setTasks([]);
+    } catch {
+      setError("Could not delete all tasks. Refresh and try again.");
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   const startPreset = async (preset: PresetTask) => {
     setStartingPresetId(preset.id);
     setError("");
@@ -105,14 +122,24 @@ export default function TasksPage() {
             <h1 className="text-xl font-semibold text-white">Tasks</h1>
             <p className="mt-1 text-sm text-slate-500">Run history with the chat messages, status, and captured outputs for each task.</p>
           </div>
-          <button
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-stroke bg-panelSoft px-3 text-sm font-semibold text-slate-200 hover:border-cyan-400/50"
-            onClick={loadTasks}
-            disabled={loading}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-stroke bg-panelSoft px-3 text-sm font-semibold text-slate-200 hover:border-cyan-400/50 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={loadTasks}
+              disabled={loading || deletingAll}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </button>
+            <button
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-red-400/35 bg-red-500/10 px-3 text-sm font-semibold text-red-200 hover:border-red-400/60 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={removeAllTasks}
+              disabled={loading || deletingAll || tasks.length === 0}
+            >
+              <Trash2 className="h-4 w-4" />
+              {deletingAll ? "Deleting..." : "Delete All"}
+            </button>
+          </div>
         </div>
 
         <section className="mb-5 grid gap-3 rounded-lg border border-stroke bg-panel p-4">
@@ -195,7 +222,7 @@ export default function TasksPage() {
         {!loading && !error && tasks.length === 0 ? (
           <div className="rounded-lg border border-stroke bg-panel p-5">
             <h2 className="font-semibold text-white">No tasks yet</h2>
-            <p className="mt-2 text-sm text-slate-500">Create a browser task from the run page, then it will appear here.</p>
+            <p className="mt-2 text-sm text-slate-500">Create a browser task from New Chat, then it will appear here.</p>
           </div>
         ) : null}
 
@@ -233,7 +260,7 @@ export default function TasksPage() {
                   <button
                     className="grid h-9 w-9 place-items-center rounded-md border border-red-400/35 bg-red-500/10 text-red-300 transition hover:border-red-400/60 hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={() => removeTask(task)}
-                    disabled={deletingId === task.id}
+                    disabled={deletingAll || deletingId === task.id}
                     aria-label={`Delete ${task.title}`}
                     title="Delete task"
                   >
