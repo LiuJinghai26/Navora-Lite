@@ -1,7 +1,9 @@
 import asyncio
 import html
+import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 from app.agent.actions import AgentAction, target_to_selector
 from app.config import Settings
@@ -10,6 +12,21 @@ DEMO_PRODUCT = "AURORA TASK LAMP"
 DEMO_COLOR = "Warm White"
 DEMO_PRICE = 89
 PRESET_NAVIGATION_TIMEOUT_MS = 10000
+
+
+def _unique_selectors(selectors: list[str | None]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for selector in selectors:
+        if selector and selector not in seen:
+            unique.append(selector)
+            seen.add(selector)
+    return unique
+
+
+def _parse_form_body(body: str) -> dict[str, Any]:
+    parsed = parse_qs(body, keep_blank_values=True)
+    return {key: values if len(values) > 1 else values[0] for key, values in parsed.items()}
 
 
 def preset_fallback_html(url: str | None) -> str | None:
@@ -134,6 +151,48 @@ def preset_fallback_html(url: str | None) -> str | None:
   </main>
 </body>
 </html>"""
+    if url == "https://httpbin.org/forms/post":
+        return """<!doctype html>
+<html>
+<head>
+  <title>httpbin test form</title>
+  <style>
+    body { margin: 0; background: #fff; color: #111827; font-family: Arial, sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 40px 48px; }
+    label { display: block; margin: 14px 0 6px; font-weight: 700; }
+    input, textarea { box-sizing: border-box; width: 100%; padding: 10px; }
+    fieldset { border: 1px solid #d1d5db; margin: 18px 0; padding: 16px; }
+    fieldset label { display: inline-flex; gap: 8px; margin-right: 18px; font-weight: 400; }
+    fieldset input { width: auto; }
+    button { background: #2563eb; border: 0; color: white; padding: 10px 16px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Pizza Order Form</h1>
+    <form method="post" action="/post">
+      <label>Name <input name="custname" /></label>
+      <label>Telephone <input name="custtel" /></label>
+      <label>Email <input name="custemail" /></label>
+      <fieldset>
+        <legend>Pizza Size</legend>
+        <label><input type="radio" name="size" value="small" /> Small</label>
+        <label><input type="radio" name="size" value="medium" /> Medium</label>
+        <label><input type="radio" name="size" value="large" /> Large</label>
+      </fieldset>
+      <fieldset>
+        <legend>Pizza Toppings</legend>
+        <label><input type="checkbox" name="topping" value="bacon" /> Bacon</label>
+        <label><input type="checkbox" name="topping" value="cheese" /> Extra Cheese</label>
+        <label><input type="checkbox" name="topping" value="mushroom" /> Mushroom</label>
+      </fieldset>
+      <label>Preferred delivery time <input name="delivery" type="time" /></label>
+      <label>Delivery instructions <textarea name="comments"></textarea></label>
+      <button type="submit">Submit test form</button>
+    </form>
+  </main>
+</body>
+</html>"""
     return None
 
 
@@ -193,6 +252,13 @@ class MockBrowserSession(BrowserSession):
                     "designed_by": "Guido van Rossum",
                     "first_appeared": "1991",
                 }
+            if target == "wikipedia article summary":
+                return {
+                    "site": "Wikipedia",
+                    "title": "Article summary",
+                    "summary": "Mock browser fallback could not inspect the live article.",
+                    "infobox": {},
+                }
             if target == "mdn web api overview":
                 topics = ["Fetch API", "Canvas API", "DOM", "Web Storage API"]
                 self.context["mdn_topics"] = topics
@@ -205,6 +271,25 @@ class MockBrowserSession(BrowserSession):
                         "title": "Fetch API",
                         "summary": "The Fetch API provides an interface for fetching resources.",
                     },
+                }
+            if target == "httpbin form echo":
+                return {
+                    "site": "httpbin",
+                    "form": {
+                        "custname": "Navora Tester",
+                        "custtel": "555-0100",
+                        "custemail": "tester@example.com",
+                        "size": "medium",
+                        "topping": ["bacon", "cheese"],
+                        "delivery": "18:30",
+                        "comments": "Browser task test",
+                    },
+                }
+            if target == "page summary":
+                return {
+                    "page_title": "Mock browser fallback page",
+                    "url": self.url,
+                    "summary": "Mock browser fallback could not inspect the live page.",
                 }
             return {
                 "product_name": DEMO_PRODUCT,
@@ -263,15 +348,11 @@ class PlaywrightBrowserSession(BrowserSession):
         if action.type == "goto" and action.url:
             await self._goto(action.url)
         elif action.type == "fill":
-            selector = action.selector or target_to_selector(action.target)
-            if selector and action.value is not None:
-                await self.page.fill(selector, action.value)
+            await self._fill(action)
         elif action.type == "click":
-            selector = action.selector or target_to_selector(action.target)
-            if selector:
-                await self.page.click(selector)
-        elif action.type == "press" and action.key:
-            await self.page.keyboard.press(action.key)
+            await self._click(action)
+        elif action.type == "press":
+            await self._press(action)
         elif action.type == "scroll":
             amount = action.amount or 600
             sign = -1 if action.direction == "up" else 1
@@ -279,6 +360,7 @@ class PlaywrightBrowserSession(BrowserSession):
         elif action.type == "wait":
             await self.page.wait_for_timeout(action.ms or 500)
         elif action.type == "extract":
+            await self._wait_for_page_settle()
             target = (action.target or "").lower()
             if target == "hacker news top story":
                 return await self._extract_hacker_news_top_story()
@@ -294,31 +376,110 @@ class PlaywrightBrowserSession(BrowserSession):
                 if isinstance(result, dict):
                     result["topics"] = self.context.get("mdn_topics", [])
                 return result
-            # The mock page exposes stable attributes so extraction is repeatable in tests and demos.
-            return await self.page.evaluate(
-                """() => {
-                    const product = document.querySelector('[data-product-name]')?.getAttribute('data-product-name')
-                      || document.querySelector('#cart-product-name')?.textContent
-                      || 'AURORA TASK LAMP';
-                    const color = document.querySelector('[data-cart-color]')?.getAttribute('data-cart-color')
-                      || document.querySelector('#cart-color')?.textContent
-                      || 'Warm White';
-                    const rawQuantity = document.querySelector('[data-cart-quantity]')?.getAttribute('data-cart-quantity')
-                      || document.querySelector('#cart-quantity')?.textContent
-                      || document.querySelector('#quantity')?.value
-                      || '2';
-                    const subtotal = document.querySelector('[data-cart-subtotal]')?.getAttribute('data-cart-subtotal')
-                      || document.querySelector('#cart-subtotal')?.textContent
-                      || '$178';
-                    return {
-                      product_name: product.trim(),
-                      color: color.trim(),
-                      quantity: Number.parseInt(rawQuantity, 10) || 2,
-                      subtotal: subtotal.trim()
-                    };
-                }"""
-            )
+            if target == "wikipedia article summary":
+                return await self._extract_wikipedia_article_summary()
+            if target == "httpbin form echo":
+                return await self._extract_httpbin_form_echo()
+            if target == "page summary":
+                return await self._extract_page_summary()
+            if "wikipedia.org" in self.page.url:
+                return await self._extract_wikipedia_article_summary()
+            if "httpbin.org/post" in self.page.url:
+                return await self._extract_httpbin_form_echo()
+            if "mock/findparts" not in self.page.url:
+                return await self._extract_page_summary()
+            return await self._extract_mock_cart_summary()
         return None
+
+    async def _fill(self, action: AgentAction) -> None:
+        if action.value is None:
+            return
+        target = (action.target or "").lower()
+        candidates = [action.selector]
+        if "search" in target:
+            candidates.extend(
+                [
+                    'input[name="search"]',
+                    'input[type="search"]',
+                    'input[aria-label*="search" i]',
+                    'input[placeholder*="search" i]',
+                    'textarea[aria-label*="search" i]',
+                    "#searchInput",
+                    "#search-input input",
+                ]
+            )
+        candidates.append(target_to_selector(action.target))
+        await self._try_fill(candidates, action.value)
+
+    async def _click(self, action: AgentAction) -> None:
+        target = action.target or ""
+        target_key = target.lower()
+        candidates = [action.selector]
+        if "search" in target_key and ("button" in target_key or "submit" in target_key):
+            candidates.extend(
+                [
+                    'button[type="submit"]',
+                    'input[type="submit"]',
+                    'button[aria-label*="search" i]',
+                    'button:has-text("Search")',
+                ]
+            )
+        if "submit" in target_key:
+            candidates.extend(['button:has-text("Submit")', 'input[type="submit"]', "button"])
+        candidates.append(target_to_selector(action.target))
+        selector_error: Exception | None = None
+        try:
+            await self._try_click(candidates)
+            return
+        except Exception as exc:
+            selector_error = exc
+            if not target:
+                raise
+        for locator in [self.page.get_by_role("link", name=target), self.page.get_by_role("button", name=target)]:
+            try:
+                await locator.first.click(timeout=2000)
+                return
+            except Exception:
+                continue
+        if selector_error:
+            raise selector_error
+        raise ValueError(f"Could not click {target}")
+
+    async def _press(self, action: AgentAction) -> None:
+        key = action.key or action.target
+        if not key:
+            return
+        aliases = {"return": "Enter", "enter": "Enter", "esc": "Escape"}
+        await self.page.keyboard.press(aliases.get(key.lower(), key))
+
+    async def _wait_for_page_settle(self) -> None:
+        try:
+            await self.page.wait_for_load_state("domcontentloaded", timeout=5000)
+        except Exception:
+            pass
+        await self.page.wait_for_timeout(300)
+
+    async def _try_fill(self, selectors: list[str | None], value: str) -> None:
+        last_error: Exception | None = None
+        for selector in _unique_selectors(selectors):
+            try:
+                await self.page.locator(selector).first.fill(value, timeout=2000)
+                return
+            except Exception as exc:
+                last_error = exc
+        if last_error:
+            raise last_error
+
+    async def _try_click(self, selectors: list[str | None]) -> None:
+        last_error: Exception | None = None
+        for selector in _unique_selectors(selectors):
+            try:
+                await self.page.locator(selector).first.click(timeout=2000)
+                return
+            except Exception as exc:
+                last_error = exc
+        if last_error:
+            raise last_error
 
     async def _extract_hacker_news_top_story(self) -> Any:
         return await self.page.evaluate(
@@ -348,17 +509,34 @@ class PlaywrightBrowserSession(BrowserSession):
         fallback_html = preset_fallback_html(url)
         timeout = PRESET_NAVIGATION_TIMEOUT_MS if fallback_html else 45000
         try:
-            await self.page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            response = await self.page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            if response and response.status >= 400 and fallback_html:
+                await self._goto_preset_fallback(url, fallback_html)
+            elif url == "https://httpbin.org/forms/post":
+                await self._ensure_httpbin_post_route()
         except Exception:
             if not fallback_html:
                 raise
             await self._goto_preset_fallback(url, fallback_html)
+
+    async def _ensure_httpbin_post_route(self) -> None:
+        if self.context.get("httpbin_post_route"):
+            return
+
+        async def fulfill_httpbin_post(route: Any) -> None:
+            form = _parse_form_body(route.request.post_data or "")
+            await route.fulfill(status=200, content_type="application/json", body=json.dumps({"form": form}))
+
+        await self.page.route("https://httpbin.org/post", fulfill_httpbin_post)
+        self.context["httpbin_post_route"] = True
 
     async def _goto_preset_fallback(self, url: str, body: str) -> None:
         async def fulfill(route: Any) -> None:
             await route.fulfill(status=200, content_type="text/html", body=body)
 
         await self.page.route(url, fulfill)
+        if url == "https://httpbin.org/forms/post":
+            await self._ensure_httpbin_post_route()
         try:
             await self.page.goto(url, wait_until="domcontentloaded", timeout=PRESET_NAVIGATION_TIMEOUT_MS)
         finally:
@@ -383,6 +561,61 @@ class PlaywrightBrowserSession(BrowserSession):
                     designed_by: lookup('designed by'),
                     first_appeared: lookup('first appeared'),
                     typing_discipline: lookup('typing discipline')
+                };
+            }"""
+        )
+
+    async def _extract_mock_cart_summary(self) -> Any:
+        return await self.page.evaluate(
+            """() => {
+                const product = document.querySelector('[data-product-name]')?.getAttribute('data-product-name')
+                  || document.querySelector('#cart-product-name')?.textContent
+                  || 'AURORA TASK LAMP';
+                const color = document.querySelector('[data-cart-color]')?.getAttribute('data-cart-color')
+                  || document.querySelector('#cart-color')?.textContent
+                  || 'Warm White';
+                const rawQuantity = document.querySelector('[data-cart-quantity]')?.getAttribute('data-cart-quantity')
+                  || document.querySelector('#cart-quantity')?.textContent
+                  || document.querySelector('#quantity')?.value
+                  || '2';
+                const subtotal = document.querySelector('[data-cart-subtotal]')?.getAttribute('data-cart-subtotal')
+                  || document.querySelector('#cart-subtotal')?.textContent
+                  || '$178';
+                return {
+                  product_name: product.trim(),
+                  color: color.trim(),
+                  quantity: Number.parseInt(rawQuantity, 10) || 2,
+                  subtotal: subtotal.trim()
+                };
+            }"""
+        )
+
+    async def _extract_wikipedia_article_summary(self) -> Any:
+        return await self.page.evaluate(
+            """() => {
+                const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+                const lead = Array.from(document.querySelectorAll('#mw-content-text .mw-parser-output > p'))
+                    .map((paragraph) => clean(paragraph.textContent))
+                    .find((text) => text.length > 80) || '';
+                const rows = Array.from(document.querySelectorAll('table.infobox tr'));
+                const infobox = {};
+                for (const row of rows) {
+                    const key = clean(row.querySelector('th')?.textContent);
+                    const value = clean(row.querySelector('td')?.textContent);
+                    if (key && value) infobox[key] = value;
+                }
+                const lookup = (label) => {
+                    const key = Object.keys(infobox).find((item) => item.toLowerCase().includes(label));
+                    return key ? infobox[key] : '';
+                };
+                return {
+                    site: 'Wikipedia',
+                    title: clean(document.querySelector('#firstHeading')?.textContent) || document.title,
+                    url: window.location.href,
+                    summary: lead,
+                    birth_date: lookup('born'),
+                    known_for: lookup('known for'),
+                    infobox
                 };
             }"""
         )
@@ -427,6 +660,55 @@ class PlaywrightBrowserSession(BrowserSession):
                         summary,
                         sections
                     }
+                };
+            }"""
+        )
+
+    async def _extract_httpbin_form_echo(self) -> Any:
+        return await self.page.evaluate(
+            """() => {
+                const text = document.body?.innerText || '';
+                try {
+                    const payload = JSON.parse(text);
+                    return {
+                        site: 'httpbin',
+                        url: window.location.href,
+                        form: payload.form || {},
+                        headers: payload.headers || {}
+                    };
+                } catch {
+                    return {
+                        site: 'httpbin',
+                        url: window.location.href,
+                        raw: text.slice(0, 2000)
+                    };
+                }
+            }"""
+        )
+
+    async def _extract_page_summary(self) -> Any:
+        return await self.page.evaluate(
+            """() => {
+                const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+                const paragraphs = Array.from(document.querySelectorAll('main p, article p, p'))
+                    .map((paragraph) => clean(paragraph.textContent))
+                    .filter((text) => text.length > 40)
+                    .slice(0, 5);
+                const headings = Array.from(document.querySelectorAll('h1, h2'))
+                    .map((heading) => clean(heading.textContent))
+                    .filter(Boolean)
+                    .slice(0, 8);
+                const links = Array.from(document.querySelectorAll('a[href]'))
+                    .map((link) => ({ text: clean(link.textContent), href: link.href }))
+                    .filter((link) => link.text)
+                    .slice(0, 10);
+                return {
+                    page_title: document.title,
+                    url: window.location.href,
+                    heading: clean(document.querySelector('h1')?.textContent),
+                    paragraphs,
+                    headings,
+                    links
                 };
             }"""
         )
