@@ -42,6 +42,9 @@ def _parse_actions(content: str) -> list[AgentAction]:
         raw = raw["actions"]
     if not isinstance(raw, list):
         raise ValueError("Planner response must be a JSON array.")
+    for item in raw:
+        if isinstance(item, dict) and "type" not in item and "action" in item:
+            item["type"] = item.pop("action")
     actions = [AgentAction(**item) for item in raw]
     # Validate model output before any browser side effect is attempted.
     for action in actions:

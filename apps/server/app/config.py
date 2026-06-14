@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     api_key: str = ""
     max_tokens: int = 4096
     temperature: float = 0.2
-    llm_timeout_seconds: float = 20.0
+    llm_timeout_seconds: float = 60.0
 
     browser_headless: bool = True
     browser_channel: str = "chromium"
@@ -36,4 +36,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

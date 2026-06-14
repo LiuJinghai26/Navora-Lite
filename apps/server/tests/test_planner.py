@@ -1,6 +1,6 @@
 from app.agent.browser import preset_fallback_html
 from app.agent.presets import preset_plan
-from app.llm.client import mock_plan
+from app.llm.client import _parse_actions, mock_plan
 
 
 def test_mock_planner_outputs_demo_sequence():
@@ -18,6 +18,13 @@ def test_mock_planner_outputs_demo_sequence():
     ]
     assert actions[1].value == "AURORA TASK LAMP"
     assert actions[4].target == "color Warm White"
+
+
+def test_parse_actions_accepts_model_action_alias():
+    actions = _parse_actions('[{"action":"goto","url":"http://localhost:8000/mock/findparts"}]')
+
+    assert actions[0].type == "goto"
+    assert actions[0].url == "http://localhost:8000/mock/findparts"
 
 
 def test_preset_planner_outputs_hacker_news_sequence():
