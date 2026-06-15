@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getTasks } from "@/lib/api";
+import { buildRunStats, failureLabels } from "@/lib/run-stats";
 import type { FailureType, Run } from "@/lib/types";
 
 const nav = [
@@ -14,21 +15,6 @@ const nav = [
   { label: "Sessions", href: "/sessions", icon: Monitor },
   { label: "Settings", href: "/settings", icon: Settings }
 ];
-
-const failureLabels: Record<FailureType, string> = {
-  recognition_failed: "识别",
-  planning_failed: "规划",
-  execution_failed: "执行"
-};
-
-function failureTypeFor(run: Run): FailureType {
-  // Older runs may only have a failed timeline action, so infer the failure bucket.
-  if (run.failureType) return run.failureType;
-  const failedStep = run.timeline.find((step) => step.status === "failed");
-  if (failedStep?.action === "recognition") return "recognition_failed";
-  if (failedStep?.action === "planning") return "planning_failed";
-  return "execution_failed";
-}
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -49,27 +35,7 @@ export function AppSidebar() {
     };
   }, [pathname]);
 
-  const stats = useMemo(() => {
-    // Success rate only counts terminal runs so active tasks do not distort the metric.
-    const terminal = tasks.filter((task) => ["completed", "failed", "stopped"].includes(task.status));
-    const completed = terminal.filter((task) => task.status === "completed").length;
-    const failed = terminal.filter((task) => task.status === "failed");
-    const failures: Record<FailureType, number> = {
-      recognition_failed: 0,
-      planning_failed: 0,
-      execution_failed: 0
-    };
-    for (const run of failed) {
-      failures[failureTypeFor(run)] += 1;
-    }
-    return {
-      total: terminal.length,
-      completed,
-      failed: failed.length,
-      successRate: terminal.length ? Math.round((completed / terminal.length) * 100) : 0,
-      failures
-    };
-  }, [tasks]);
+  const stats = useMemo(() => buildRunStats(tasks), [tasks]);
 
   return (
     <aside className="flex w-full shrink-0 flex-col border-b border-stroke px-4 py-4 md:sticky md:top-0 md:h-screen md:w-[244px] md:overflow-y-auto md:border-b-0 md:border-r md:py-5" style={{ background: "var(--color-sidebar)" }}>
@@ -109,7 +75,16 @@ export function AppSidebar() {
         })}
       </nav>
 
-      <div className="mt-4 hidden rounded-lg border border-stroke bg-panelSoft p-3 md:block">
+      <Link
+        href="/stats"
+        className={clsx(
+          "mt-4 hidden rounded-lg border p-3 transition md:block",
+          pathname.startsWith("/stats")
+            ? "border-cyan-400/40 bg-cyan-400/10"
+            : "border-stroke bg-panelSoft hover:border-cyan-400/45 hover:bg-cyan-400/10"
+        )}
+        aria-label="Open detailed run statistics"
+      >
         <div className="mb-3 flex items-center justify-between gap-2">
           <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
             <BarChart3 className="h-3.5 w-3.5" />
@@ -135,7 +110,7 @@ export function AppSidebar() {
             </div>
           ))}
         </div>
-      </div>
+      </Link>
 
       <div className="mt-auto hidden rounded-lg border border-stroke bg-panelSoft p-3 md:block">
         <div className="flex items-center gap-3">
