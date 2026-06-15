@@ -49,7 +49,7 @@ export default function ProfilePage() {
         <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
           <section className="rounded-lg border border-stroke bg-panel p-5">
             <div className="flex items-center gap-4">
-              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-emerald-400/15 text-lg font-bold text-emerald-100">
+              <div className="profile-avatar grid h-16 w-16 shrink-0 place-items-center rounded-lg text-lg font-bold">
                 {profile.initials || DEFAULT_PROFILE.initials}
               </div>
               <div className="min-w-0">

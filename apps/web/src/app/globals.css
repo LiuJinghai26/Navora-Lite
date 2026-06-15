@@ -18,6 +18,14 @@
   --color-muted: #94a3b8;
   --color-faint: #64748b;
   --color-sidebar: rgba(7, 16, 28, 0.96);
+  --brand-logo-bg: rgba(34, 211, 238, 0.1);
+  --brand-logo-border: rgba(34, 211, 238, 0.4);
+  --brand-logo-mark: #a5f3fc;
+  --brand-logo-text: #cffafe;
+  --brand-logo-shadow: var(--shadow-glow);
+  --profile-avatar-bg: #064e3b;
+  --profile-avatar-border: rgba(110, 231, 183, 0.35);
+  --profile-avatar-text: #d1fae5;
   --body-background:
     radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.14), transparent 32%),
     radial-gradient(circle at 86% 12%, rgba(37, 99, 235, 0.12), transparent 30%),
@@ -42,6 +50,14 @@
   --color-muted: #4b5563;
   --color-faint: #6b7280;
   --color-sidebar: rgba(255, 255, 255, 0.96);
+  --brand-logo-bg: #ddf2ed;
+  --brand-logo-border: #9ed8c6;
+  --brand-logo-mark: #0f6f59;
+  --brand-logo-text: #064e3b;
+  --brand-logo-shadow: 0 10px 24px rgba(16, 163, 127, 0.14);
+  --profile-avatar-bg: #065f46;
+  --profile-avatar-border: #0e8f70;
+  --profile-avatar-text: #ffffff;
   --body-background: #f7f7f8;
   --shadow-glow: 0 18px 40px rgba(16, 163, 127, 0.12);
 }
@@ -62,6 +78,14 @@
   --color-muted: #5f3a2d;
   --color-faint: #744534;
   --color-sidebar: rgba(255, 246, 239, 0.96);
+  --brand-logo-bg: #ffe8da;
+  --brand-logo-border: #ebb39a;
+  --brand-logo-mark: #9a3412;
+  --brand-logo-text: #7c2d12;
+  --brand-logo-shadow: 0 10px 24px rgba(185, 56, 18, 0.14);
+  --profile-avatar-bg: #7c2d12;
+  --profile-avatar-border: #b93812;
+  --profile-avatar-text: #fffaf6;
   --body-background: linear-gradient(135deg, #fff4ec 0%, #ffe3d5 100%);
   --shadow-glow: 0 18px 42px rgba(255, 122, 69, 0.16);
 }
@@ -201,4 +225,25 @@ select {
 [data-theme="warm"] .border-cyan-400\/50,
 [data-theme="warm"] .border-cyan-400\/70 {
   border-color: rgba(185, 56, 18, 0.5) !important;
+}
+
+.brand-logo {
+  background: var(--brand-logo-bg);
+  border-color: var(--brand-logo-border);
+  box-shadow: var(--brand-logo-shadow);
+  color: var(--brand-logo-text);
+}
+
+.brand-logo .brand-logo-mark {
+  border-color: var(--brand-logo-mark);
+}
+
+.brand-logo .brand-logo-letter {
+  color: var(--brand-logo-text);
+}
+
+.profile-avatar {
+  background: var(--profile-avatar-bg);
+  border: 1px solid var(--profile-avatar-border);
+  color: var(--profile-avatar-text);
 }

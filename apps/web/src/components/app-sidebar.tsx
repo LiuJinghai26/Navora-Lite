@@ -53,9 +53,9 @@ export function AppSidebar() {
   return (
     <aside className="flex w-full shrink-0 flex-col border-b border-stroke px-4 py-4 md:sticky md:top-0 md:h-screen md:w-[244px] md:overflow-y-auto md:border-b-0 md:border-r md:py-5" style={{ background: "var(--color-sidebar)" }}>
       <Link href="/new-chat" className="mb-4 flex items-center gap-3 md:mb-7">
-        <span className="relative grid h-10 w-10 place-items-center rounded-lg border border-cyan-400/40 bg-cyan-400/10 shadow-glow">
-          <span className="absolute h-5 w-5 rotate-45 border-l-2 border-t-2 border-cyan-200" />
-          <span className="text-sm font-black text-cyan-100">N</span>
+        <span className="brand-logo relative grid h-10 w-10 place-items-center rounded-lg border">
+          <span className="brand-logo-mark absolute h-5 w-5 rotate-45 border-l-2 border-t-2" />
+          <span className="brand-logo-letter text-sm font-black">N</span>
         </span>
         <span>
           <span className="block text-sm font-bold text-white">Navora Lite</span>
@@ -136,7 +136,7 @@ export function AppSidebar() {
         aria-label="Open profile"
       >
         <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-md bg-emerald-400/15 text-sm font-bold text-emerald-100">
+          <div className="profile-avatar grid h-9 w-9 place-items-center rounded-md text-sm font-bold">
             {profile.initials}
           </div>
           <div className="min-w-0">
