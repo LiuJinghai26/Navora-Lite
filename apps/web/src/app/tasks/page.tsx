@@ -2,8 +2,10 @@
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { StatusBadge } from "@/components/status-badge";
-import { createBatchTasks, createRun, deleteTask, getBatchPromptSources, getTasks } from "@/lib/api";
+import { createBatchTasks, createRun, deleteTask, getBatchPromptSources } from "@/lib/api";
 import { PRESET_TASKS, type PresetTask } from "@/lib/preset-tasks";
+import { displayRunTitle } from "@/lib/run-stats";
+import { refreshTaskCache } from "@/lib/task-cache";
 import type { BatchPromptSource, Run, RunStatus } from "@/lib/types";
 import clsx from "clsx";
 import { BookOpen, Clock, ExternalLink, Filter, ListPlus, MessageSquare, Network, Newspaper, Play, RefreshCw, Search, Trash2 } from "lucide-react";
@@ -49,7 +51,7 @@ function matchesSearch(run: Run, query: string) {
   // Search combines identifiers, task text, status, and the latest visible message.
   const normalized = query.trim().toLowerCase();
   if (!normalized) return true;
-  return [run.id, run.title, run.task, run.status, lastMessage(run)]
+  return [run.id, displayRunTitle(run), run.task, run.status, lastMessage(run)]
     .filter(Boolean)
     .some((value) => value.toLowerCase().includes(normalized));
 }
@@ -113,7 +115,7 @@ export default function TasksPage() {
     if (showLoading) setLoading(true);
     setError("");
     try {
-      const loaded = await getTasks();
+      const loaded = await refreshTaskCache();
       setTasks(loaded);
       return loaded;
     } catch {
@@ -153,7 +155,7 @@ export default function TasksPage() {
   }, []);
 
   const removeTask = async (task: Run) => {
-    const confirmed = window.confirm(`Delete task "${task.title}"? This removes it from local history.`);
+    const confirmed = window.confirm(`Delete task "${displayRunTitle(task)}"? This removes it from local history.`);
     if (!confirmed) return;
     setDeletingId(task.id);
     setError("");
@@ -288,7 +290,7 @@ export default function TasksPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-semibold text-white">Batch prompt tests</h2>
-              <p className="mt-1 text-xs text-slate-500">Create or run tasks from the Markdown prompt suites.</p>
+              <p className="mt-1 text-xs text-slate-500">Create or run tasks from the prompt suites.</p>
             </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_120px_120px_auto]">
@@ -452,14 +454,14 @@ export default function TasksPage() {
                     <StatusBadge status={task.status} />
                     <span className="text-xs text-slate-500">{task.id}</span>
                   </div>
-                  <h2 className="line-clamp-2 text-base font-semibold text-white">{task.title}</h2>
+                  <h2 className="break-words text-base font-semibold text-white">{displayRunTitle(task)}</h2>
                   <p className="mt-2 line-clamp-2 text-sm text-slate-400">{lastMessage(task)}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Link
                     href={`/runs/${task.id}`}
                     className="grid h-9 w-9 place-items-center rounded-md border border-stroke bg-panelSoft text-slate-400 transition hover:border-cyan-400/50 hover:text-cyan-300"
-                    aria-label={`Open ${task.title}`}
+                    aria-label={`Open ${displayRunTitle(task)}`}
                     title="Open task"
                   >
                     <ExternalLink className="h-4 w-4" />
@@ -468,7 +470,7 @@ export default function TasksPage() {
                     className="grid h-9 w-9 place-items-center rounded-md border border-red-400/35 bg-red-500/10 text-red-300 transition hover:border-red-400/60 hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={() => removeTask(task)}
                     disabled={deletingAll || deletingId === task.id}
-                    aria-label={`Delete ${task.title}`}
+                    aria-label={`Delete ${displayRunTitle(task)}`}
                     title="Delete task"
                   >
                     <Trash2 className="h-4 w-4" />

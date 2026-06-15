@@ -4,6 +4,7 @@ import { Code2, Download, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { rerun } from "@/lib/api";
+import { displayRunTitle } from "@/lib/run-stats";
 import type { Run } from "@/lib/types";
 import { StatusBadge } from "./status-badge";
 
@@ -56,7 +57,7 @@ export function RunHeader({ run }: { run: Run }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-xl font-semibold text-white">{run.title}</h1>
+            <h1 className="break-words text-xl font-semibold text-white">{displayRunTitle(run)}</h1>
             <StatusBadge status={run.status} />
           </div>
           <div className="mt-2 grid gap-x-5 gap-y-1 text-xs text-slate-400 md:grid-cols-2 xl:grid-cols-4">

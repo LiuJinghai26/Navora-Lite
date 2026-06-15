@@ -14,6 +14,7 @@ from app.models import BatchPromptSource, ChatMessage, CreateBatchTasksRequest, 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 BATCH_ALL_SOURCE = "all"
 BATCH_RUN_LOCK = threading.Lock()
+BATCH_PROMPT_DIR = "prompts"
 
 BATCH_PROMPT_FILES = (
     "browser_task_prompts_60.json",
@@ -43,7 +44,7 @@ def _repo_root() -> Path:
 def _prompt_path(file_name: str) -> Path:
     if file_name not in BATCH_PROMPT_FILES:
         raise HTTPException(status_code=400, detail="Unknown batch prompt source")
-    path = _repo_root() / file_name
+    path = _repo_root() / BATCH_PROMPT_DIR / file_name
     if not path.exists():
         raise HTTPException(status_code=404, detail="Batch prompt file not found")
     return path

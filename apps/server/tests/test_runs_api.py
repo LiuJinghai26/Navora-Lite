@@ -51,6 +51,23 @@ def test_runs_api_preserves_preset_metadata():
     assert run["inputs"]["preset_id"] == "hn-top-story"
 
 
+def test_runs_api_preserves_full_free_task_title():
+    task = (
+        "打开 `https://www.bestbuy.com/`，搜索 `wireless mouse`，"
+        "提取前 5 个商品名称、价格和评分，不要加入购物车。"
+    )
+    response = client.post(
+        "/api/runs",
+        json={"task": task, "url": "https://www.bestbuy.com/", "auto_start": False},
+    )
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+
+    get_response = client.get(f"/api/runs/{run_id}")
+    assert get_response.status_code == 200
+    assert get_response.json()["title"] == task
+
+
 def test_runs_api_requires_model_config_for_auto_started_free_task(monkeypatch):
     # Free-form auto-start is blocked without model settings.
     monkeypatch.setattr(

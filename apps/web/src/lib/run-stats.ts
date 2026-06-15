@@ -30,6 +30,13 @@ export function latestMessage(run: Run): string {
   return run.messages[run.messages.length - 1]?.content || run.task;
 }
 
+export function displayRunTitle(run: Run): string {
+  if (run.task && run.title && run.task.startsWith(run.title) && run.task.length > run.title.length) {
+    return run.task;
+  }
+  return run.title || run.task;
+}
+
 export function failedStepFor(run: Run): TimelineStep | undefined {
   return run.timeline.find((step) => step.status === "failed");
 }

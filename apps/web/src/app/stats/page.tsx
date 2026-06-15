@@ -1,18 +1,17 @@
 "use client";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { getTasks } from "@/lib/api";
-import { buildRunStats, failureLabels } from "@/lib/run-stats";
+import { buildRunStats, displayRunTitle, failureLabels } from "@/lib/run-stats";
+import { getCachedTasks, refreshTaskCache, subscribeTaskCache } from "@/lib/task-cache";
 import type { FailureType, Run } from "@/lib/types";
 import clsx from "clsx";
 import { AlertTriangle, BarChart3, CheckCircle2, Clock3, ExternalLink, ListChecks, XCircle } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type FailureFilter = "all" | FailureType;
 
 const failureFilters: FailureFilter[] = ["all", "recognition_failed", "planning_failed", "execution_failed"];
-
 function formatDate(value?: string) {
   if (!value) return "Unknown";
   return new Intl.DateTimeFormat("en-US", {
@@ -39,29 +38,36 @@ function statCards(stats: ReturnType<typeof buildRunStats>) {
 }
 
 export default function StatsPage() {
-  const [tasks, setTasks] = useState<Run[]>([]);
+  const [tasks, setTasks] = useState<Run[]>(() => getCachedTasks() || []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [failureFilter, setFailureFilter] = useState<FailureFilter>("all");
 
-  useEffect(() => {
-    let mounted = true;
-    setLoading(true);
+  const loadStats = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError("");
-    getTasks()
-      .then((items) => {
-        if (mounted) setTasks(items);
-      })
-      .catch(() => {
-        if (mounted) setError("Could not load run statistics. Start the FastAPI backend and try again.");
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
+    try {
+      await refreshTaskCache();
+    } catch {
+      setError("Could not load run statistics. Start the FastAPI backend and try again.");
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeTaskCache(setTasks);
+    void loadStats();
+    return unsubscribe;
+  }, [loadStats]);
+
+  useEffect(() => {
+    if (!tasks.some((task) => task.status === "running")) return undefined;
+    const timer = window.setInterval(() => {
+      void loadStats(false);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [loadStats, tasks]);
 
   const stats = useMemo(() => buildRunStats(tasks), [tasks]);
   const visibleFailures = useMemo(
@@ -167,7 +173,7 @@ export default function StatsPage() {
                               <span className="text-xs text-slate-500">{formatDate(record.occurredAt)}</span>
                               <span className="text-xs text-slate-500">{formatDuration(record.run.durationMs)}</span>
                             </div>
-                            <h3 className="break-words text-sm font-semibold text-white">{record.run.title}</h3>
+                            <h3 className="break-words text-sm font-semibold text-white">{displayRunTitle(record.run)}</h3>
                             <p className="mt-1 break-words text-xs leading-5 text-slate-500">{record.run.id}</p>
                           </div>
                           <Link

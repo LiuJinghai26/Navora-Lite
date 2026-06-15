@@ -15,7 +15,7 @@ DISABLED_MOCK_URL = "http://localhost:8000/mock/findparts"
 
 
 def _title_for_task(task: str, preset_id: str | None = None) -> str:
-    # Prefer stable product titles for known presets, otherwise derive a compact run title.
+    # Prefer stable product titles for known presets, otherwise keep the full task text.
     if preset_id and preset_id in PRESET_TASKS:
         return str(PRESET_TASKS[preset_id]["title"])
     if "HACKER NEWS" in task.upper():
@@ -24,7 +24,7 @@ def _title_for_task(task: str, preset_id: str | None = None) -> str:
         return "Wikipedia Python Summary"
     if "MDN" in task.upper():
         return "MDN Web API Research"
-    return task.strip()[:72] or "Browser Agent Run"
+    return task.strip() or "Browser Agent Run"
 
 
 def _now() -> str:
