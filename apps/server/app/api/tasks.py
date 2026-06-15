@@ -1,7 +1,7 @@
 from pathlib import Path
-import re
+import json
 import threading
-from typing import NamedTuple
+from typing import Any, NamedTuple
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
@@ -15,11 +15,11 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 BATCH_ALL_SOURCE = "all"
 BATCH_RUN_LOCK = threading.Lock()
 
-BATCH_PROMPT_FILES = {
-    "browser_task_prompts_60.md": "60 prompts with URLs",
-    "browser_task_prompts_60_no_url.md": "60 prompts without URLs",
-    "browser_multistep_prompts_20.md": "20 multi-step prompts",
-}
+BATCH_PROMPT_FILES = (
+    "browser_task_prompts_60.json",
+    "browser_task_prompts_60_no_url.json",
+    "browser_multistep_prompts_20.json",
+)
 
 
 class PromptItem(NamedTuple):
@@ -36,10 +36,6 @@ class PromptSection(NamedTuple):
     count: int
 
 
-def _section_slug(title: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", title.strip().lower()).strip("-")
-
-
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[4]
 
@@ -53,6 +49,13 @@ def _prompt_path(file_name: str) -> Path:
     return path
 
 
+def _load_prompt_suite(file_name: str) -> dict[str, Any]:
+    try:
+        return json.loads(_prompt_path(file_name).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Batch prompt file is invalid JSON") from exc
+
+
 def _split_prompt_source(source: str) -> tuple[str, str | None]:
     if source == BATCH_ALL_SOURCE:
         raise HTTPException(status_code=400, detail="Unknown batch prompt source")
@@ -62,61 +65,33 @@ def _split_prompt_source(source: str) -> tuple[str, str | None]:
     return file_name, section or None
 
 
-def _parse_markdown_prompt_items(source: str, content: str) -> list[PromptItem]:
+def _suite_title(file_name: str, suite: dict[str, Any]) -> str:
+    return str(suite.get("title") or Path(file_name).stem)
+
+
+def _prompt_items_from_suite(source: str, suite: dict[str, Any]) -> list[PromptItem]:
     prompts: list[PromptItem] = []
-    current_section = ""
-    current_section_title = ""
-    current_number: int | None = None
-    current_parts: list[str] = []
-
-    def flush_current() -> None:
-        nonlocal current_number, current_parts
-        if current_number is not None:
-            task = re.sub(r"\s+", " ", " ".join(current_parts)).strip()
+    for section in suite.get("sections", []):
+        section_slug = str(section["slug"])
+        section_title = str(section.get("title") or section_slug)
+        for prompt in section.get("prompts", []):
+            task = " ".join(str(prompt["task"]).split()).strip()
             if task:
-                prompts.append(PromptItem(source, current_number, task, current_section, current_section_title))
-        current_number = None
-        current_parts = []
-
-    for raw_line in content.splitlines():
-        line = raw_line.rstrip()
-        heading_match = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line)
-        if heading_match:
-            flush_current()
-            if len(heading_match.group(1)) == 1:
-                current_section = ""
-                current_section_title = ""
-            else:
-                current_section_title = heading_match.group(2).strip()
-                current_section = _section_slug(current_section_title)
-            continue
-
-        item_match = re.match(r"^\s{0,3}(\d+)[.)]\s+(.*)", line)
-        if item_match:
-            flush_current()
-            current_number = int(item_match.group(1))
-            current_parts = [item_match.group(2).strip()]
-            continue
-
-        if current_number is not None and line.strip():
-            current_parts.append(line.strip())
-
-    flush_current()
+                prompts.append(PromptItem(source, int(prompt["number"]), task, section_slug, section_title))
     return prompts
 
 
-def _prompt_section_summaries(prompts: list[PromptItem]) -> list[PromptSection]:
-    sections: dict[str, PromptSection] = {}
-    order: list[str] = []
-    for prompt in prompts:
-        if not prompt.section:
-            continue
-        if prompt.section not in sections:
-            order.append(prompt.section)
-            sections[prompt.section] = PromptSection(prompt.section, prompt.section_title, 0)
-        current = sections[prompt.section]
-        sections[prompt.section] = PromptSection(current.slug, current.title, current.count + 1)
-    return [sections[section] for section in order]
+def _prompt_section_summaries(suite: dict[str, Any]) -> list[PromptSection]:
+    summaries: list[PromptSection] = []
+    for section in suite.get("sections", []):
+        summaries.append(
+            PromptSection(
+                str(section["slug"]),
+                str(section.get("title") or section["slug"]),
+                len(section.get("prompts", [])),
+            )
+        )
+    return summaries
 
 
 def _load_prompt_items(source: str) -> list[PromptItem]:
@@ -127,7 +102,7 @@ def _load_prompt_items(source: str) -> list[PromptItem]:
         return items
 
     file_name, section = _split_prompt_source(source)
-    prompts = _parse_markdown_prompt_items(file_name, _prompt_path(file_name).read_text(encoding="utf-8"))
+    prompts = _prompt_items_from_suite(file_name, _load_prompt_suite(file_name))
     if section is None:
         return prompts
     selected = [prompt for prompt in prompts if prompt.section == section]
@@ -136,8 +111,7 @@ def _load_prompt_items(source: str) -> list[PromptItem]:
     return selected
 
 
-def _batch_source_title(file_name: str, section_title: str | None = None) -> str:
-    title = BATCH_PROMPT_FILES[file_name]
+def _batch_source_title(title: str, section_title: str | None = None) -> str:
     if section_title is None:
         return title
     return f"{title} - {section_title}"
@@ -163,16 +137,18 @@ async def list_batch_prompt_sources() -> list[BatchPromptSource]:
     sources: list[BatchPromptSource] = []
     total = 0
     for file_name in BATCH_PROMPT_FILES:
-        prompts = _load_prompt_items(file_name)
+        suite = _load_prompt_suite(file_name)
+        title = _suite_title(file_name, suite)
+        prompts = _prompt_items_from_suite(file_name, suite)
         total += len(prompts)
         sources.append(
-            BatchPromptSource(id=file_name, title=_batch_source_title(file_name), count=len(prompts), file=file_name)
+            BatchPromptSource(id=file_name, title=_batch_source_title(title), count=len(prompts), file=file_name)
         )
-        for section in _prompt_section_summaries(prompts):
+        for section in _prompt_section_summaries(suite):
             sources.append(
                 BatchPromptSource(
                     id=f"{file_name}#{section.slug}",
-                    title=_batch_source_title(file_name, section.title),
+                    title=_batch_source_title(title, section.title),
                     count=section.count,
                     file=file_name,
                     section=section.slug,

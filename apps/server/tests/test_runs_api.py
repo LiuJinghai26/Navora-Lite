@@ -139,60 +139,58 @@ def test_tasks_api_lists_batch_prompt_sources():
     assert response.status_code == 200
     sources = response.json()
     assert any(item["id"] == "all" and item["count"] == 140 for item in sources)
-    assert any(item["id"] == "browser_task_prompts_60.md" and item["count"] == 60 for item in sources)
+    assert any(item["id"] == "browser_task_prompts_60.json" and item["count"] == 60 for item in sources)
     assert any(
-        item["id"] == "browser_task_prompts_60.md#simple"
+        item["id"] == "browser_task_prompts_60.json#simple"
         and item["title"] == "60 prompts with URLs - Simple"
         and item["count"] == 20
-        and item["file"] == "browser_task_prompts_60.md"
+        and item["file"] == "browser_task_prompts_60.json"
         and item["section"] == "simple"
         for item in sources
     )
-    assert any(item["id"] == "browser_task_prompts_60.md#medium" and item["count"] == 20 for item in sources)
-    assert any(item["id"] == "browser_task_prompts_60.md#complex" and item["count"] == 20 for item in sources)
-    assert any(item["id"] == "browser_task_prompts_60_no_url.md#simple" and item["count"] == 20 for item in sources)
-    assert any(item["id"] == "browser_task_prompts_60_no_url.md#medium" and item["count"] == 20 for item in sources)
-    assert any(item["id"] == "browser_task_prompts_60_no_url.md#complex" and item["count"] == 20 for item in sources)
-    assert any(item["id"] == "browser_multistep_prompts_20.md" and item["count"] == 20 for item in sources)
-    assert any(item["id"] == "browser_multistep_prompts_20.md#no-url-provided" and item["count"] == 10 for item in sources)
-    assert any(item["id"] == "browser_multistep_prompts_20.md#url-provided" and item["count"] == 10 for item in sources)
+    assert any(item["id"] == "browser_task_prompts_60.json#medium" and item["count"] == 20 for item in sources)
+    assert any(item["id"] == "browser_task_prompts_60.json#complex" and item["count"] == 20 for item in sources)
+    assert any(item["id"] == "browser_task_prompts_60_no_url.json#simple" and item["count"] == 20 for item in sources)
+    assert any(item["id"] == "browser_task_prompts_60_no_url.json#medium" and item["count"] == 20 for item in sources)
+    assert any(item["id"] == "browser_task_prompts_60_no_url.json#complex" and item["count"] == 20 for item in sources)
+    assert any(item["id"] == "browser_multistep_prompts_20.json" and item["count"] == 20 for item in sources)
+    assert any(item["id"] == "browser_multistep_prompts_20.json#no-url-provided" and item["count"] == 10 for item in sources)
+    assert any(item["id"] == "browser_multistep_prompts_20.json#url-provided" and item["count"] == 10 for item in sources)
 
 
-def test_batch_prompt_sections_are_read_from_markdown_headings():
-    prompts = tasks._parse_markdown_prompt_items(
-        "sample.md",
-        """# Prompt Suite
-## Easy Mode
+def test_batch_prompt_sections_are_read_from_structured_source():
+    suite = {
+        "title": "Sample",
+        "sections": [
+            {"slug": "easy-mode", "title": "Easy Mode", "prompts": [{"number": 1, "task": "First task."}, {"number": 2, "task": "Second task."}]},
+            {"slug": "hard-mode", "title": "Hard Mode", "prompts": [{"number": 3, "task": "Third task."}]},
+        ],
+    }
 
-1. First task.
-
-2. Second task.
-
-### Hard Mode
-
-3. Third task.
-""",
-    )
-
-    assert tasks._prompt_section_summaries(prompts) == [
+    assert tasks._prompt_section_summaries(suite) == [
         tasks.PromptSection("easy-mode", "Easy Mode", 2),
         tasks.PromptSection("hard-mode", "Hard Mode", 1),
     ]
 
 
-def test_batch_prompt_parser_preserves_multiline_prompt_text():
-    prompts = tasks._parse_markdown_prompt_items(
-        "sample.md",
-        """# Prompt Suite
-## Complex
-
-1. 打开 Example 搜索 `alpha`，
-   再打开第一个详情页，
-   最后提取标题和摘要。
-
-2. 打开第二个页面并提取标题。
-""",
-    )
+def test_batch_prompt_json_preserves_full_prompt_text():
+    suite = {
+        "title": "Sample",
+        "sections": [
+            {
+                "slug": "complex",
+                "title": "Complex",
+                "prompts": [
+                    {
+                        "number": 1,
+                        "task": "打开 Example 搜索 `alpha`，\n再打开第一个详情页，\n最后提取标题和摘要。",
+                    },
+                    {"number": 2, "task": "打开第二个页面并提取标题。"},
+                ],
+            }
+        ],
+    }
+    prompts = tasks._prompt_items_from_suite("sample.json", suite)
 
     assert len(prompts) == 2
     assert prompts[0].section == "complex"
@@ -203,7 +201,7 @@ def test_batch_prompt_parser_preserves_multiline_prompt_text():
 def test_tasks_api_creates_batch_tasks():
     response = client.post(
         "/api/tasks/batch-tests",
-        json={"source": "browser_task_prompts_60.md", "limit": 2, "offset": 0},
+        json={"source": "browser_task_prompts_60.json", "limit": 2, "offset": 0},
     )
 
     assert response.status_code == 200
@@ -214,13 +212,13 @@ def test_tasks_api_creates_batch_tasks():
     first_run = client.get(f"/api/runs/{payload['run_ids'][0]}").json()
     assert first_run["status"] == "idle"
     assert first_run["url"] == "https://www.wikipedia.org/"
-    assert first_run["inputs"]["batch_source"] == "browser_task_prompts_60.md"
+    assert first_run["inputs"]["batch_source"] == "browser_task_prompts_60.json"
 
 
 def test_tasks_api_creates_batch_tasks_from_section():
     response = client.post(
         "/api/tasks/batch-tests",
-        json={"source": "browser_task_prompts_60.md#complex", "limit": 1, "offset": 0},
+        json={"source": "browser_task_prompts_60.json#complex", "limit": 1, "offset": 0},
     )
 
     assert response.status_code == 200
@@ -228,8 +226,8 @@ def test_tasks_api_creates_batch_tasks_from_section():
     assert payload["count"] == 1
 
     first_run = client.get(f"/api/runs/{payload['run_ids'][0]}").json()
-    assert first_run["inputs"]["batch_suite"] == "browser_task_prompts_60.md#complex"
-    assert first_run["inputs"]["batch_source"] == "browser_task_prompts_60.md"
+    assert first_run["inputs"]["batch_suite"] == "browser_task_prompts_60.json#complex"
+    assert first_run["inputs"]["batch_source"] == "browser_task_prompts_60.json"
     assert first_run["inputs"]["batch_section"] == "complex"
     assert first_run["inputs"]["batch_prompt_number"] == 41
 
@@ -241,7 +239,7 @@ def test_tasks_api_creates_all_remaining_batch_and_schedules_sequential_run(monk
     response = client.post(
         "/api/tasks/batch-tests",
         json={
-            "source": "browser_multistep_prompts_20.md",
+            "source": "browser_multistep_prompts_20.json",
             "offset": 18,
             "all_remaining": True,
             "run_sequentially": True,
@@ -256,8 +254,17 @@ def test_tasks_api_creates_all_remaining_batch_and_schedules_sequential_run(monk
 
     first_run = client.get(f"/api/runs/{payload['run_ids'][0]}").json()
     assert first_run["status"] == "idle"
-    assert first_run["inputs"]["batch_suite"] == "browser_multistep_prompts_20.md"
+    assert first_run["inputs"]["batch_suite"] == "browser_multistep_prompts_20.json"
     assert first_run["inputs"]["batch_prompt_number"] == 19
+
+
+def test_tasks_api_rejects_markdown_batch_source():
+    response = client.post(
+        "/api/tasks/batch-tests",
+        json={"source": "browser_task_prompts_60.md", "limit": 1, "offset": 0},
+    )
+
+    assert response.status_code == 400
 
 
 def test_tasks_api_deletes_run_history_item():
