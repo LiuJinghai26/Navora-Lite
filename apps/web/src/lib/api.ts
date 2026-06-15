@@ -1,4 +1,4 @@
-import type { CreateRunResponse, Run } from "./types";
+import type { BatchPromptSource, CreateBatchTasksResponse, CreateRunResponse, Run } from "./types";
 
 // Frontend requests target the FastAPI server, defaulting to the local dev port.
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
@@ -36,6 +36,23 @@ export async function getRun(runId: string): Promise<Run> {
 
 export async function getTasks(): Promise<Run[]> {
   return request<Run[]>("/api/tasks");
+}
+
+export async function getBatchPromptSources(): Promise<BatchPromptSource[]> {
+  return request<BatchPromptSource[]>("/api/tasks/batch-prompts");
+}
+
+export async function createBatchTasks(
+  source: string,
+  limit: number,
+  offset: number,
+  allRemaining: boolean,
+  runSequentially: boolean
+): Promise<CreateBatchTasksResponse> {
+  return request<CreateBatchTasksResponse>("/api/tasks/batch-tests", {
+    method: "POST",
+    body: JSON.stringify({ source, limit, offset, all_remaining: allRemaining, run_sequentially: runSequentially })
+  });
 }
 
 export async function deleteTask(runId: string): Promise<void> {

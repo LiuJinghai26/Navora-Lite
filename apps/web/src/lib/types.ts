@@ -74,3 +74,17 @@ export interface CreateRunResponse {
   run_id: string;
   status: RunStatus;
 }
+
+export interface BatchPromptSource {
+  id: string;
+  title: string;
+  count: number;
+  file?: string;
+  section?: string;
+}
+
+export interface CreateBatchTasksResponse {
+  run_ids: string[];
+  count: number;
+  run_sequentially: boolean;
+}

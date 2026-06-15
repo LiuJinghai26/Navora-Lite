@@ -148,6 +148,9 @@ async def _run_agent_async(run_id: str, store: RunsStore, settings: Settings) ->
         _mark_failed(run_id, store, "execution_failed", "browser", str(exc), run_started)
         return
 
+    if hasattr(session, "context"):
+        session.context["planned_click_targets"] = [action.target for action in planner.actions if action.type == "click" and action.target]
+
     extracted_payload: Any | None = None
     try:
         for action_index, action in enumerate(planner.actions, start=1):

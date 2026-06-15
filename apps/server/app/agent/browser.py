@@ -5,6 +5,7 @@ import socket
 import subprocess
 import time
 from typing import Any
+from urllib.parse import quote
 import urllib.request
 from uuid import uuid4
 
@@ -21,6 +22,25 @@ def _unique_selectors(selectors: list[str | None]) -> list[str]:
             unique.append(selector)
             seen.add(selector)
     return unique
+
+
+def _requested_fields(action: AgentAction) -> list[str]:
+    fields: list[str] = []
+
+    def collect(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, nested in value.items():
+                if key not in fields:
+                    fields.append(str(key))
+                collect(nested)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+
+    collect(action.extract_schema or {})
+    if not fields and action.target:
+        fields.extend(part.strip() for part in action.target.replace("/", " ").split(",") if part.strip())
+    return fields[:20]
 
 
 class BrowserSession:
@@ -81,20 +101,22 @@ class PlaywrightBrowserSession(BrowserSession):
                     result["topics"] = self.context.get("mdn_topics", [])
                 return result
             if target == "wikipedia article summary":
+                await self._resolve_wikipedia_article_for_extract()
                 return await self._extract_wikipedia_article_summary()
             if target == "httpbin form echo":
                 return await self._extract_httpbin_form_echo()
             if target == "page summary":
-                return await self._extract_page_summary()
+                return await self._extract_task_aligned_page_data(action)
             if "news.ycombinator.com" in self.page.url:
                 return await self._extract_hacker_news_stories()
             if "github.com/trending" in self.page.url:
                 return await self._extract_github_trending()
             if "wikipedia.org" in self.page.url:
+                await self._resolve_wikipedia_article_for_extract()
                 return await self._extract_wikipedia_article_summary()
             if "httpbin.org/post" in self.page.url:
                 return await self._extract_httpbin_form_echo()
-            return await self._extract_page_summary()
+            return await self._extract_task_aligned_page_data(action)
         return None
 
     async def _fill(self, action: AgentAction) -> None:
@@ -153,6 +175,12 @@ class PlaywrightBrowserSession(BrowserSession):
             selector_error = exc
             if not target:
                 raise
+        try:
+            await self._click_named_link(target)
+            await self._wait_for_page_settle()
+            return
+        except Exception:
+            pass
         # Role locators handle links/buttons whose accessible name matches the planner target.
         for locator in [self.page.get_by_role("link", name=target), self.page.get_by_role("button", name=target)]:
             try:
@@ -161,9 +189,130 @@ class PlaywrightBrowserSession(BrowserSession):
                 return
             except Exception:
                 continue
+        try:
+            await self._goto_named_wiki_article(target)
+            return
+        except Exception:
+            pass
         if selector_error:
             raise selector_error
         raise ValueError(f"Could not click {target}")
+
+    async def _click_named_link(self, target: str) -> None:
+        script = """(target) => {
+            const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+            const targetText = clean(target).toLowerCase();
+            const badHref = /\\/wiki\\/(?:File|Special|Help|Category|Template|Talk|User|Wikipedia|MediaWiki|Portal):/i;
+            const links = Array.from(document.querySelectorAll('main a[href], article a[href], #mw-content-text a[href], a[href]'));
+            const visible = (link) => {
+                const rect = link.getBoundingClientRect();
+                const style = window.getComputedStyle(link);
+                return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+            };
+            const score = (link) => {
+                const text = clean(link.textContent).toLowerCase();
+                const label = clean(link.getAttribute('aria-label')).toLowerCase();
+                const title = clean(link.getAttribute('title')).toLowerCase();
+                const href = link.href || '';
+                if (!visible(link) || !href || badHref.test(href)) return -1;
+                let value = 0;
+                if (text === targetText) value += 100;
+                else if (label === targetText || title === targetText) value += 80;
+                else if (text.includes(targetText)) value += 50;
+                else return -1;
+                if (link.closest('p')) value += 20;
+                if (link.closest('table.infobox')) value += 10;
+                if (link.querySelector('img') || link.closest('figure')) value -= 40;
+                return value;
+            };
+            return links
+                .map((link) => ({ link, score: score(link) }))
+                .filter((item) => item.score >= 0)
+                .sort((a, b) => b.score - a.score)[0]?.link || null;
+        }"""
+        handle = await self.page.evaluate_handle(script, target)
+        element = handle.as_element()
+        if element is None:
+            raise ValueError(f"Could not find named link {target}")
+        await element.click(timeout=2000)
+
+    async def _goto_named_wiki_article(self, target: str) -> None:
+        parsed = self.page.url.split("/")
+        if len(parsed) < 3 or "wiki" not in self.page.url:
+            raise ValueError(f"Current page is not a wiki article: {self.page.url}")
+        origin = "/".join(parsed[:3])
+        slug = quote(target.strip().replace(" ", "_"), safe="_()")
+        if not slug:
+            raise ValueError("Empty wiki article target.")
+        await self._goto(f"{origin}/wiki/{slug}")
+        await self._wait_for_page_settle()
+
+    async def _resolve_wikipedia_article_for_extract(self) -> None:
+        click_targets = [target for target in self.context.get("planned_click_targets", []) if target]
+        if not click_targets:
+            return
+        result = await self._evaluate(
+            """async (clickTargets) => {
+                const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+                const lowerTargets = clickTargets.map((target) => clean(target).toLowerCase()).filter(Boolean);
+                const bodyText = clean(document.body?.innerText || '');
+                const hasInfobox = !!document.querySelector('table.infobox');
+                const isSearchPage = location.href.includes('/wiki/Special:Search') || document.body.classList.contains('mw-special-Search');
+                const isDisambiguation = !!document.querySelector('#disambigbox, a[href*="Help:Disambiguation"]')
+                    || /\\bmay (also )?refer to\\b/i.test(bodyText.slice(0, 2000));
+                if (hasInfobox || (!isSearchPage && !isDisambiguation)) return null;
+
+                const title = clean(document.querySelector('#firstHeading')?.textContent).toLowerCase();
+                const badPath = /^\\/wiki\\/(?:File|Special|Help|Category|Template|Talk|User|Wikipedia|MediaWiki|Portal):/i;
+                const candidateNodes = Array.from(document.querySelectorAll(
+                    '.mw-search-result-heading a[href], #mw-content-text li a[href], #mw-content-text p a[href]'
+                ));
+                const seen = new Set();
+                const candidates = [];
+                for (const link of candidateNodes) {
+                    const text = clean(link.textContent).toLowerCase();
+                    if (!text) continue;
+                    const url = new URL(link.getAttribute('href'), location.href);
+                    if (!url.pathname.startsWith('/wiki/') || badPath.test(url.pathname) || url.hash) continue;
+                    const href = url.href;
+                    if (href === location.href || seen.has(href)) continue;
+                    seen.add(href);
+                    candidates.push({
+                        href,
+                        text,
+                        context: clean(link.closest('li, .mw-search-result, p')?.textContent).toLowerCase()
+                    });
+                    if (candidates.length >= 16) break;
+                }
+
+                const scored = await Promise.all(candidates.map(async (candidate, index) => {
+                    let score = 0;
+                    if (title && candidate.text.startsWith(`${title} (`)) score += 20;
+                    else if (title && candidate.text.startsWith(`${title} `)) score += 12;
+                    else if (title && candidate.text === title) score += 8;
+                    if (candidate.text.includes('(')) score += 4;
+                    if (lowerTargets.includes(candidate.text)) score -= 60;
+                    try {
+                        const response = await fetch(candidate.href, { credentials: 'same-origin' });
+                        const html = (await response.text()).toLowerCase();
+                        const targetHits = lowerTargets.filter((target) => html.includes(target)).length;
+                        if (targetHits) score += 100 * targetHits;
+                        if (/class=["'][^"']*infobox/i.test(html)) score += 20;
+                        if (html.includes('id="disambigbox"') || html.includes('help:disambiguation')) score -= 50;
+                    } catch {
+                        score -= 20;
+                    }
+                    return { ...candidate, score, index };
+                }));
+
+                const best = scored.sort((a, b) => b.score - a.score || a.index - b.index)[0];
+                return best && best.score >= 80 ? { url: best.href, score: best.score } : null;
+            }""",
+            click_targets,
+        )
+        if isinstance(result, dict) and result.get("url"):
+            await self._goto(result["url"])
+            await self._wait_for_page_settle()
 
     async def _press(self, action: AgentAction) -> None:
         key = action.key or action.target
@@ -216,11 +365,13 @@ class PlaywrightBrowserSession(BrowserSession):
         if last_error:
             raise last_error
 
-    async def _evaluate(self, script: str) -> Any:
+    async def _evaluate(self, script: str, arg: Any | None = None) -> Any:
         last_error: Exception | None = None
         for _ in range(3):
             try:
-                return await self.page.evaluate(script)
+                if arg is None:
+                    return await self.page.evaluate(script)
+                return await self.page.evaluate(script, arg)
             except Exception as exc:
                 last_error = exc
                 message = str(exc)
@@ -463,6 +614,105 @@ class PlaywrightBrowserSession(BrowserSession):
                     links
                 };
             }"""
+        )
+
+    async def _extract_task_aligned_page_data(self, action: AgentAction) -> Any:
+        return await self._evaluate(
+            """(request) => {
+                const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+                const visible = (element) => {
+                    const rect = element.getBoundingClientRect();
+                    const style = window.getComputedStyle(element);
+                    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+                };
+                const requestedFields = Array.from(new Set((request.fields || []).map(clean).filter(Boolean)));
+                const bodyText = clean(document.body?.innerText || '');
+                const lines = bodyText.split(/\\n+/).map(clean).filter(Boolean);
+                const headings = Array.from(document.querySelectorAll('h1, h2, h3'))
+                    .map((heading) => clean(heading.textContent))
+                    .filter(Boolean)
+                    .slice(0, 10);
+                const links = Array.from(document.querySelectorAll('a[href]'))
+                    .filter(visible)
+                    .map((link) => ({ text: clean(link.textContent), href: link.href }))
+                    .filter((link) => link.text)
+                    .slice(0, 20);
+                const labelValuePairs = [];
+                for (const row of Array.from(document.querySelectorAll('tr'))) {
+                    const key = clean(row.querySelector('th')?.textContent);
+                    const value = clean(row.querySelector('td')?.textContent);
+                    if (key && value) labelValuePairs.push({ key, value });
+                }
+                for (const item of Array.from(document.querySelectorAll('dt'))) {
+                    const key = clean(item.textContent);
+                    const value = clean(item.nextElementSibling?.textContent);
+                    if (key && value) labelValuePairs.push({ key, value });
+                }
+
+                const regexValue = (field) => {
+                    if (/price|cost|价格|总价|每晚/i.test(field)) {
+                        return bodyText.match(/(?:[$€£]\\s?\\d[\\d,.]*|\\d[\\d,.]*\\s?(?:USD|EUR|GBP|美元|元))/i)?.[0] || '';
+                    }
+                    if (/rating|score|评分|星级/i.test(field)) {
+                        return bodyText.match(/\\b\\d(?:\\.\\d)?\\s?(?:out of|\\/|stars?|分|星)\\s?\\d?/i)?.[0] || '';
+                    }
+                    if (/date|time|时间|日期|发布|出生/i.test(field)) {
+                        return bodyText.match(/\\b(?:\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}|\\d{1,2}:\\d{2}|\\w+ \\d{1,2}, \\d{4})\\b/i)?.[0] || '';
+                    }
+                    return '';
+                };
+                const fieldMatches = {};
+                for (const field of requestedFields) {
+                    const key = field.toLowerCase();
+                    const pair = labelValuePairs.find((item) => item.key.toLowerCase().includes(key) || key.includes(item.key.toLowerCase()));
+                    const line = lines.find((item) => item.toLowerCase().includes(key));
+                    fieldMatches[field] = pair?.value || regexValue(field) || line || '';
+                }
+
+                const containers = Array.from(document.querySelectorAll(
+                    'article, [role="listitem"], li, [class*="product" i], [class*="card" i], [class*="result" i], [data-testid*="product" i], [data-testid*="result" i]'
+                )).filter(visible);
+                const seen = new Set();
+                const records = [];
+                for (const container of containers) {
+                    const text = clean(container.textContent);
+                    if (text.length < 20 || text.length > 1800) continue;
+                    const title = clean(container.querySelector('h1, h2, h3, h4, a, [data-testid*="title" i]')?.textContent);
+                    const price = text.match(/(?:[$€£]\\s?\\d[\\d,.]*|\\d[\\d,.]*\\s?(?:USD|EUR|GBP|美元|元))/i)?.[0] || '';
+                    const rating = text.match(/\\b\\d(?:\\.\\d)?\\s?(?:out of|\\/|stars?|分|星)\\s?\\d?/i)?.[0] || '';
+                    const href = container.querySelector('a[href]')?.href || '';
+                    const signature = `${title}|${price}|${text.slice(0, 80)}`;
+                    if ((!title && !price && !rating) || seen.has(signature)) continue;
+                    seen.add(signature);
+                    records.push({
+                        title,
+                        price,
+                        rating,
+                        url: href,
+                        text: text.slice(0, 500)
+                    });
+                    if (records.length >= 10) break;
+                }
+
+                return {
+                    page_title: document.title,
+                    url: window.location.href,
+                    heading: clean(document.querySelector('h1')?.textContent),
+                    request: {
+                        target: request.target || '',
+                        requested_fields: requestedFields
+                    },
+                    field_matches: fieldMatches,
+                    records,
+                    headings,
+                    links,
+                    paragraphs: Array.from(document.querySelectorAll('main p, article p, p'))
+                        .map((paragraph) => clean(paragraph.textContent))
+                        .filter((text) => text.length > 40)
+                        .slice(0, 5)
+                };
+            }""",
+            {"target": action.target or "", "fields": _requested_fields(action)},
         )
 
     async def screenshot(self, path: Path, label: str) -> None:

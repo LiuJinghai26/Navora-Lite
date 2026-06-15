@@ -10,6 +10,8 @@ If no Start URL is provided, choose a suitable public URL from the task context 
 
 Prefer resilient targets and selectors:
 - For site search, use {"type":"fill","target":"search input","value":"query"} then {"type":"press","key":"Enter"} or click a search button.
+- For Wikipedia tasks with English search terms, English link names, or English field names, start from https://en.wikipedia.org/ instead of https://www.wikipedia.org/ to avoid locale-specific pages.
+- For Wikipedia search tasks, do not extract from search-results or disambiguation pages. If a search term is broad, use the requested fields, entity type, related names, or follow-up link names to choose a more specific article query; otherwise click the best matching article result before extracting.
 - Wait after navigation, search, filtering, sorting, or opening a result.
 - For extraction on one page, use an extract action with a concise target and a schema containing the requested fields.
 - If the task says to open, click, follow, enter, or visit a link/result/article after extracting the current page, do not combine that future page into the current extract.

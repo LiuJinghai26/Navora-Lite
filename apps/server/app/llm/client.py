@@ -1,6 +1,7 @@
 import json
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -12,6 +13,9 @@ from app.llm.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.llm.schemas import PlannerConfigurationError, PlannerError, PlannerResult, TaskRecognitionError
 
 
+PLANNER_MAX_TOKENS = 4096
+
+
 def _is_local_provider(settings: Settings) -> bool:
     # Local OpenAI-compatible servers commonly accept empty API keys.
     return settings.model_provider.lower() in {"ollama", "lmstudio", "vllm", "custom"}
@@ -21,6 +25,8 @@ def recognized_task_plan(task: str, start_url: str) -> list[AgentAction] | None:
     # Recognized plans avoid model calls for common public-site tasks.
     task_key = task.lower()
     url_key = start_url.lower()
+    if _requires_model_planning(task_key):
+        return None
     if "ada lovelace" in task_key:
         return _article_plan("https://en.wikipedia.org/wiki/Ada_Lovelace")
     if "grace hopper" in task_key:
@@ -161,6 +167,62 @@ def recognized_task_plan(task: str, start_url: str) -> list[AgentAction] | None:
     return None
 
 
+def _requires_model_planning(task_key: str) -> bool:
+    complex_markers = [
+        "打开前",
+        "打开第一个",
+        "打开一个",
+        "分别打开",
+        "分别进入",
+        "依次",
+        "继续打开",
+        "再打开",
+        "然后打开",
+        "评论页",
+        "详情页",
+        "分类页",
+        "新闻详情页",
+        "商品详情页",
+        "筛选",
+        "排序",
+        "选择",
+        "设置",
+        "入住日期",
+        "退房日期",
+        "人数",
+        "填写",
+        "提交",
+        "对比",
+        "推荐",
+        "按价格",
+        "按下载量",
+        "按语言",
+        "三个页面",
+        "三个文档页",
+        "三页",
+        "搜索或打开",
+        "搜索或找到",
+        "首页可见的 3",
+        "3 个主要资源",
+        "open the first",
+        "open top",
+        "open the top",
+        "then open",
+        "continue to open",
+        "detail page",
+        "details page",
+        "comment page",
+        "filter",
+        "sort",
+        "select",
+        "set ",
+        "fill",
+        "submit",
+        "compare",
+    ]
+    return any(marker in task_key for marker in complex_markers)
+
+
 def _article_plan(url: str) -> list[AgentAction]:
     # Article plans navigate directly, then use a stable extractor target.
     return [
@@ -225,24 +287,38 @@ def _parse_actions(content: str) -> list[AgentAction]:
     return actions
 
 
-def _extract_follow_link_target(task: str) -> str | None:
+def _extract_follow_link_targets(task: str) -> list[str]:
     patterns = [
-        r"(?:打开|点击|进入|访问|跟随)\s*[`\"“'‘]?([^`\"”'’。，；,;\n]{2,80}?)[`\"”'’]?\s*(?:链接|页面|条目|文章)",
+        r"(?:打开|点击|进入|访问|跟随)\s*[`\"“'‘]?([^`\"”'’。，、；,;\n]{2,80}?)[`\"”'’]?\s*(?:链接|页面|文档页|条目|文章)",
+        r"(?:打开|点击|进入|访问|跟随)[^。，；,;\n]{0,40}?指向\s*[`\"“'‘]?([^`\"”'’。，、；,;\n]{2,80}?)[`\"”'’]?\s*(?:的)?\s*(?:链接|页面|文档页|条目|文章)",
         r"(?:open|click|follow|visit|enter|navigate to)\s+(?:the\s+)?[`\"']?([^`\"',.;\n]{2,80}?)[`\"']?\s+(?:link|page|article|result)",
     ]
+    targets: list[str] = []
+    multi_page_match = re.search(
+        r"(?:搜索或打开|搜索或找到|找到)\s*((?:[`\"“'‘][^`\"”'’]+[`\"”'’]\s*[、,，]?\s*){2,})[^。；;\n]{0,30}?(?:页面|文档页|条目|文章)",
+        task,
+    )
+    if multi_page_match:
+        for match in re.finditer(r"[`\"“'‘]([^`\"”'’]{2,80})[`\"”'’]", multi_page_match.group(1)):
+            target = re.sub(r"\s+", " ", match.group(1)).strip(" `\"'“”‘’")
+            if target and not target.startswith(("http://", "https://")) and target not in targets:
+                targets.append(target)
     for pattern in patterns:
-        match = re.search(pattern, task, flags=re.IGNORECASE)
-        if not match:
-            continue
-        target = re.sub(r"\s+", " ", match.group(1)).strip(" `\"'“”‘’")
-        if target and not target.startswith(("http://", "https://")):
-            return target
-    return None
+        for match in re.finditer(pattern, task, flags=re.IGNORECASE):
+            target = re.sub(r"\s+", " ", match.group(1)).strip(" `\"'“”‘’")
+            if target and not target.startswith(("http://", "https://")) and target not in targets:
+                targets.append(target)
+    return targets
+
+
+def _extract_follow_link_target(task: str) -> str | None:
+    targets = _extract_follow_link_targets(task)
+    return targets[0] if targets else None
 
 
 def _ensure_follow_link_steps(task: str, actions: list[AgentAction]) -> list[AgentAction]:
-    link_target = _extract_follow_link_target(task)
-    if not link_target:
+    link_targets = _extract_follow_link_targets(task)
+    if not link_targets:
         return actions
 
     extract_indexes = [index for index, action in enumerate(actions) if action.type == "extract"]
@@ -254,14 +330,65 @@ def _ensure_follow_link_steps(task: str, actions: list[AgentAction]) -> list[Age
         return actions
 
     original_extract = actions[first_extract_index]
+    if len(link_targets) == 1:
+        link_target = link_targets[0]
+        return [
+            *actions[:first_extract_index],
+            AgentAction(type="extract", target="current page requested fields", extract_schema=original_extract.extract_schema),
+            AgentAction(type="click", target=link_target),
+            AgentAction(type="wait", ms=1000, condition=f"Wait for {link_target}"),
+            original_extract,
+            *actions[first_extract_index + 1 :],
+        ]
+
+    follow_steps: list[AgentAction] = [
+        AgentAction(type="extract", target="current page requested fields", extract_schema=original_extract.extract_schema)
+    ]
+    for link_target in link_targets:
+        follow_steps.extend(
+            [
+                AgentAction(type="click", target=link_target),
+                AgentAction(type="wait", ms=1000, condition=f"Wait for {link_target}"),
+                AgentAction(type="extract", target=f"{link_target} requested fields", extract_schema=original_extract.extract_schema),
+            ]
+        )
     return [
         *actions[:first_extract_index],
-        AgentAction(type="extract", target="current page requested fields", extract_schema=original_extract.extract_schema),
-        AgentAction(type="click", target=link_target),
-        AgentAction(type="wait", ms=1000, condition=f"Wait for {link_target}"),
-        original_extract,
+        *follow_steps,
         *actions[first_extract_index + 1 :],
     ]
+
+
+def _prefer_english_wikipedia_for_ascii_search(actions: list[AgentAction]) -> list[AgentAction]:
+    if len(actions) < 3:
+        return actions
+
+    first = actions[0]
+    if first.type != "goto" or not first.url:
+        return actions
+    host = urlparse(first.url).netloc.lower()
+    if host not in {"www.wikipedia.org", "wikipedia.org"}:
+        return actions
+
+    has_ascii_search = any(
+        action.type == "fill"
+        and action.value
+        and "search" in ((action.target or "") + " " + (action.selector or "")).lower()
+        and action.value.isascii()
+        for action in actions[1:4]
+    )
+    if not has_ascii_search:
+        return actions
+
+    return [first.model_copy(update={"url": "https://en.wikipedia.org/"}), *actions[1:]]
+
+
+def _postprocess_model_actions(task: str, actions: list[AgentAction]) -> list[AgentAction]:
+    return _ensure_follow_link_steps(task, _prefer_english_wikipedia_for_ascii_search(actions))
+
+
+def _planner_max_tokens(settings: Settings) -> int:
+    return min(settings.max_tokens, PLANNER_MAX_TOKENS)
 
 
 async def plan_actions(task: str, url: str, settings: Settings, preset_id: str | None = None) -> PlannerResult:
@@ -292,7 +419,7 @@ async def plan_actions(task: str, url: str, settings: Settings, preset_id: str |
             {"role": "user", "content": build_user_prompt(task, start_url)},
         ],
         "temperature": settings.temperature,
-        "max_tokens": settings.max_tokens,
+        "max_tokens": _planner_max_tokens(settings),
     }
 
     try:
@@ -301,7 +428,7 @@ async def plan_actions(task: str, url: str, settings: Settings, preset_id: str |
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
-            return PlannerResult(_ensure_follow_link_steps(task, _parse_actions(content)))
+            return PlannerResult(_postprocess_model_actions(task, _parse_actions(content)))
     except TaskRecognitionError:
         raise
     except Exception as exc:
