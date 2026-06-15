@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 import httpx
@@ -224,6 +225,45 @@ def _parse_actions(content: str) -> list[AgentAction]:
     return actions
 
 
+def _extract_follow_link_target(task: str) -> str | None:
+    patterns = [
+        r"(?:打开|点击|进入|访问|跟随)\s*[`\"“'‘]?([^`\"”'’。，；,;\n]{2,80}?)[`\"”'’]?\s*(?:链接|页面|条目|文章)",
+        r"(?:open|click|follow|visit|enter|navigate to)\s+(?:the\s+)?[`\"']?([^`\"',.;\n]{2,80}?)[`\"']?\s+(?:link|page|article|result)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, task, flags=re.IGNORECASE)
+        if not match:
+            continue
+        target = re.sub(r"\s+", " ", match.group(1)).strip(" `\"'“”‘’")
+        if target and not target.startswith(("http://", "https://")):
+            return target
+    return None
+
+
+def _ensure_follow_link_steps(task: str, actions: list[AgentAction]) -> list[AgentAction]:
+    link_target = _extract_follow_link_target(task)
+    if not link_target:
+        return actions
+
+    extract_indexes = [index for index, action in enumerate(actions) if action.type == "extract"]
+    if not extract_indexes:
+        return actions
+    first_extract_index = extract_indexes[0]
+    has_follow_navigation = any(action.type in {"click", "goto"} for action in actions[first_extract_index + 1 :])
+    if has_follow_navigation:
+        return actions
+
+    original_extract = actions[first_extract_index]
+    return [
+        *actions[:first_extract_index],
+        AgentAction(type="extract", target="current page requested fields", extract_schema=original_extract.extract_schema),
+        AgentAction(type="click", target=link_target),
+        AgentAction(type="wait", ms=1000, condition=f"Wait for {link_target}"),
+        original_extract,
+        *actions[first_extract_index + 1 :],
+    ]
+
+
 async def plan_actions(task: str, url: str, settings: Settings, preset_id: str | None = None) -> PlannerResult:
     # Planning order is deterministic: preset, recognized task, then model.
     preset_actions = preset_plan(preset_id)
@@ -261,7 +301,7 @@ async def plan_actions(task: str, url: str, settings: Settings, preset_id: str |
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
-            return PlannerResult(_parse_actions(content))
+            return PlannerResult(_ensure_follow_link_steps(task, _parse_actions(content)))
     except TaskRecognitionError:
         raise
     except Exception as exc:

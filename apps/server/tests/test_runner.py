@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from app.agent.actions import AgentAction
-from app.agent.runner import OPEN_BROWSER_SESSIONS, close_or_keep_browser_session, run_agent
+from app.agent.runner import OPEN_BROWSER_SESSIONS, _updated_extraction_payload, close_or_keep_browser_session, run_agent
 from app.llm.schemas import PlannerResult
 from app.models import ChatMessage, Run
 from app.storage.runs_store import RunsStore
@@ -86,3 +86,18 @@ def test_visible_browser_session_stays_open_after_run():
         assert session in OPEN_BROWSER_SESSIONS
     finally:
         OPEN_BROWSER_SESSIONS.clear()
+
+
+def test_multiple_extractions_are_accumulated():
+    first = {"title": "First page"}
+    second = {"title": "Linked page"}
+
+    current = _updated_extraction_payload(None, AgentAction(type="extract", target="First page facts"), first)
+    combined = _updated_extraction_payload(current, AgentAction(type="extract", target="Linked page facts"), second)
+
+    assert current == first
+    assert combined["latest"] == second
+    assert combined["extracts"] == [
+        {"target": "Previous extract", "data": first},
+        {"target": "Linked page facts", "data": second},
+    ]

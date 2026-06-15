@@ -148,6 +148,7 @@ async def _run_agent_async(run_id: str, store: RunsStore, settings: Settings) ->
         _mark_failed(run_id, store, "execution_failed", "browser", str(exc), run_started)
         return
 
+    extracted_payload: Any | None = None
     try:
         for action_index, action in enumerate(planner.actions, start=1):
             run = store.get_run(run_id)
@@ -171,7 +172,8 @@ async def _run_agent_async(run_id: str, store: RunsStore, settings: Settings) ->
                 result = await session.execute(action)
                 extraction_failure = None
                 if action.type == "extract":
-                    store.set_extracted(run_id, result)
+                    extracted_payload = _updated_extraction_payload(extracted_payload, action, result)
+                    store.set_extracted(run_id, extracted_payload)
                     extraction_failure = _extraction_failure_message(result)
                 screenshot_path = settings.artifacts_dir / f"{run_id}_{action_index:02d}.{'png' if session.__class__.__name__.startswith('Playwright') else 'svg'}"
                 await session.screenshot(screenshot_path, step.description)
@@ -232,6 +234,26 @@ async def _run_agent_async(run_id: str, store: RunsStore, settings: Settings) ->
         )
     finally:
         await close_or_keep_browser_session(session, settings)
+
+
+def _updated_extraction_payload(current: Any | None, action: AgentAction, result: Any) -> Any:
+    if current is None:
+        return result
+
+    entry = {"target": action.target or "Extracted information", "data": result}
+    if isinstance(current, dict) and isinstance(current.get("extracts"), list):
+        return {
+            **current,
+            "latest": result,
+            "extracts": [*current["extracts"], entry],
+        }
+    return {
+        "latest": result,
+        "extracts": [
+            {"target": "Previous extract", "data": current},
+            entry,
+        ],
+    }
 
 
 def _extraction_failure_message(result: Any) -> str | None:

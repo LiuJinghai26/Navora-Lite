@@ -2,7 +2,7 @@ import pytest
 
 from app.agent.presets import preset_plan
 from app.agent.runner import _extraction_failure_message
-from app.llm.client import _parse_actions, recognized_task_plan
+from app.llm.client import _ensure_follow_link_steps, _parse_actions, recognized_task_plan
 from app.llm.schemas import TaskRecognitionError
 
 
@@ -29,6 +29,39 @@ def test_parse_actions_rejects_non_executable_plan():
 def test_parse_actions_rejects_disabled_mock_flow():
     with pytest.raises(ValueError, match="Local mock shopping flow"):
         _parse_actions('[{"type":"goto","url":"http://localhost:8000/mock/findparts"}]')
+
+
+def test_follow_link_repair_expands_single_extract_plan():
+    actions = _parse_actions(
+        """[
+            {"type":"goto","url":"https://example.com/article"},
+            {"type":"wait","ms":1000},
+            {"type":"extract","target":"First and linked page facts"}
+        ]"""
+    )
+
+    repaired = _ensure_follow_link_steps("提取当前页面摘要，然后打开 Guido van Rossum 链接并提取他的出生日期。", actions)
+
+    assert [action.type for action in repaired] == ["goto", "wait", "extract", "click", "wait", "extract"]
+    assert repaired[2].target == "current page requested fields"
+    assert repaired[3].target == "Guido van Rossum"
+    assert repaired[5].target == "First and linked page facts"
+
+
+def test_follow_link_repair_keeps_explicit_navigation_plan():
+    actions = _parse_actions(
+        """[
+            {"type":"goto","url":"https://example.com/article"},
+            {"type":"extract","target":"First page facts"},
+            {"type":"click","target":"Linked Person"},
+            {"type":"wait","ms":1000},
+            {"type":"extract","target":"Linked person facts"}
+        ]"""
+    )
+
+    repaired = _ensure_follow_link_steps("提取当前页面摘要，然后打开 Linked Person 链接并提取他的出生日期。", actions)
+
+    assert repaired == actions
 
 
 def test_recognized_task_plan_does_not_use_mock_for_default_url():

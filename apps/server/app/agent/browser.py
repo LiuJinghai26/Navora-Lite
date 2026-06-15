@@ -147,6 +147,7 @@ class PlaywrightBrowserSession(BrowserSession):
         selector_error: Exception | None = None
         try:
             await self._try_click(candidates)
+            await self._wait_for_page_settle()
             return
         except Exception as exc:
             selector_error = exc
@@ -156,6 +157,7 @@ class PlaywrightBrowserSession(BrowserSession):
         for locator in [self.page.get_by_role("link", name=target), self.page.get_by_role("button", name=target)]:
             try:
                 await locator.first.click(timeout=2000)
+                await self._wait_for_page_settle()
                 return
             except Exception:
                 continue
@@ -188,7 +190,10 @@ class PlaywrightBrowserSession(BrowserSession):
 
     async def _try_fill(self, selectors: list[str | None], value: str) -> None:
         last_error: Exception | None = None
-        for selector in _unique_selectors(selectors):
+        candidates = _unique_selectors(selectors)
+        if not candidates:
+            raise ValueError("No fill selector candidates.")
+        for selector in candidates:
             try:
                 await self.page.locator(selector).first.fill(value, timeout=2000)
                 return
@@ -199,7 +204,10 @@ class PlaywrightBrowserSession(BrowserSession):
 
     async def _try_click(self, selectors: list[str | None]) -> None:
         last_error: Exception | None = None
-        for selector in _unique_selectors(selectors):
+        candidates = _unique_selectors(selectors)
+        if not candidates:
+            raise ValueError("No click selector candidates.")
+        for selector in candidates:
             try:
                 await self.page.locator(selector).first.click(timeout=2000)
                 return
