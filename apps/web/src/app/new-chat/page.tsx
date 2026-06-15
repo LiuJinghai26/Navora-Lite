@@ -7,9 +7,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 const examples = [
-  "Find the AURORA TASK LAMP, choose Warm White, set quantity to 2, add it to the cart, and extract the cart summary.",
   "Open Hacker News and extract the current top story with its source, score, age, and comments.",
-  "Open the Wikipedia Python article and extract the lead summary, infobox language details, and page metadata."
+  "Open the Wikipedia Python article and extract the lead summary, infobox language details, and page metadata.",
+  "Open https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API and extract the page title, summary, and first four section headings."
 ];
 
 function hasPlannerConfig(settings: Record<string, unknown>) {

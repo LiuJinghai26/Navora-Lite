@@ -11,6 +11,7 @@ from app.llm.client import has_planner_config
 from app.models import ChatMessage, CreateRunRequest, CreateRunResponse, Run
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
+DISABLED_MOCK_URL = "http://localhost:8000/mock/findparts"
 
 
 def _title_for_task(task: str, preset_id: str | None = None) -> str:
@@ -22,8 +23,6 @@ def _title_for_task(task: str, preset_id: str | None = None) -> str:
         return "Wikipedia Python Summary"
     if "MDN" in task.upper():
         return "MDN Web API Research"
-    if "AURORA TASK LAMP" in task.upper():
-        return "Configure Desk Lamp Cart"
     return task.strip()[:72] or "Browser Agent Run"
 
 
@@ -33,8 +32,10 @@ def _now() -> str:
 
 def _start_url_for_task(task: str, url: str) -> str:
     match = re.search(r"https?://[^\s`，。；,;]+", task)
-    if match and url == "http://localhost:8000/mock/findparts":
+    if match and (not url or url == DISABLED_MOCK_URL):
         return match.group(0).rstrip(").]")
+    if url == DISABLED_MOCK_URL:
+        return ""
     return url
 
 

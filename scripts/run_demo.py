@@ -17,8 +17,8 @@ def request_json(method: str, url: str, payload: dict | None = None) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the Navora Lite demo task.")
-    parser.add_argument("--task", default="Find the AURORA TASK LAMP, choose Warm White, set quantity to 2, add it to the cart, and extract the cart summary")
-    parser.add_argument("--url", default="http://localhost:8000/mock/findparts")
+    parser.add_argument("--task", default="Open Hacker News and extract the current top story with its source, score, age, and comments.")
+    parser.add_argument("--url", default="https://news.ycombinator.com/")
     parser.add_argument("--api-base", default="http://localhost:8000")
     parser.add_argument("--timeout", type=int, default=90)
     args = parser.parse_args()

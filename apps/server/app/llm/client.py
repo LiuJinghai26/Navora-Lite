@@ -11,27 +11,6 @@ from app.llm.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.llm.schemas import PlannerConfigurationError, PlannerError, PlannerResult, TaskRecognitionError
 
 
-DEMO_PRODUCT = "AURORA TASK LAMP"
-DEMO_COLOR = "Warm White"
-DEMO_QUANTITY = "2"
-
-
-def mock_plan(start_url: str = "http://localhost:8000/mock/findparts") -> list[AgentAction]:
-    """Return the stable demo path used when no reliable model planner is available."""
-
-    return [
-        AgentAction(type="goto", url=start_url),
-        AgentAction(type="fill", target="search input", value=DEMO_PRODUCT),
-        AgentAction(type="click", target="search button"),
-        AgentAction(type="click", target=f"product {DEMO_PRODUCT}"),
-        AgentAction(type="click", target=f"color {DEMO_COLOR}"),
-        AgentAction(type="fill", target="quantity", value=DEMO_QUANTITY),
-        AgentAction(type="click", target="add to cart"),
-        AgentAction(type="click", target="cart"),
-        AgentAction(type="extract", schema={"product_name": "string", "color": "string", "quantity": "number", "subtotal": "string"}),
-    ]
-
-
 def _is_local_provider(settings: Settings) -> bool:
     return settings.model_provider.lower() in {"ollama", "lmstudio", "vllm", "custom"}
 
@@ -39,8 +18,6 @@ def _is_local_provider(settings: Settings) -> bool:
 def recognized_task_plan(task: str, start_url: str) -> list[AgentAction] | None:
     task_key = task.lower()
     url_key = start_url.lower()
-    if "aurora task lamp" in task_key:
-        return mock_plan(start_url)
     if "ada lovelace" in task_key:
         return _article_plan("https://en.wikipedia.org/wiki/Ada_Lovelace")
     if "grace hopper" in task_key:
@@ -245,7 +222,7 @@ async def plan_actions(task: str, url: str, settings: Settings, preset_id: str |
     if preset_actions:
         return PlannerResult(preset_actions)
 
-    start_url = url or "http://localhost:8000/mock/findparts"
+    start_url = url or ""
     recognized_actions = recognized_task_plan(task, start_url)
     if recognized_actions:
         return PlannerResult(recognized_actions)

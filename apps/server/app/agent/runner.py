@@ -51,19 +51,15 @@ def step_to_checklist(action: AgentAction) -> str:
     if action.type == "extract" and action.target:
         return f"Extract {action.target}"
     if action.type == "fill" and (action.target or "").lower() == "search input":
-        return f'Search for "{action.value or "the demo product"}"'
+        return f'Search for "{action.value or "the query"}"'
     if action.type == "click" and "product" in (action.target or "").lower():
         return "Open product page and locate item"
     if action.type == "click" and "color" in (action.target or "").lower():
         return "Choose the requested product color"
     if action.type == "fill" and (action.target or "").lower() == "quantity":
         return f"Set quantity to {action.value or 'the requested amount'}"
-    if action.type == "click" and (action.target or "").lower() == "add to cart":
-        return "Add the configured product to cart"
-    if action.type == "click" and (action.target or "").lower() == "cart":
-        return "Open cart page"
     if action.type == "extract":
-        return "Extract cart summary"
+        return "Extract requested information"
     return describe_action(action)
 
 
@@ -92,33 +88,12 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
     run = store.get_run(run_id)
     if run is None:
         return
-    run.fallbackReason = planner.fallback_reason
-    store.update_run(run)
-
     if planner.fallback_reason:
-        # Surface planner fallback in both chat and timeline instead of hiding it in logs.
-        store.add_message(
-            run_id,
-            ChatMessage(
-                id=f"msg_{uuid4().hex[:10]}",
-                role="system",
-                content=planner.fallback_reason,
-                createdAt=now_iso(),
-            ),
-        )
-        store.add_step(
-            run_id,
-            TimelineStep(
-                id=f"step_{uuid4().hex[:10]}",
-                index=0,
-                action="fallback",
-                description=planner.fallback_reason,
-                status="success",
-                startedAt=now_iso(),
-                endedAt=now_iso(),
-                durationMs=0,
-            ),
-        )
+        _mark_failed(run_id, store, "planning_failed", "planning", planner.fallback_reason, run_started)
+        return
+
+    run.fallbackReason = None
+    store.update_run(run)
 
     checklist = [ChecklistItem(text=step_to_checklist(action), status="pending") for action in planner.actions]
     store.add_message(
@@ -132,7 +107,12 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
         ),
     )
 
-    session = await create_browser_session(settings)
+    try:
+        session = await create_browser_session(settings)
+    except Exception as exc:
+        _mark_failed(run_id, store, "execution_failed", "browser", str(exc), run_started)
+        return
+
     try:
         for action_index, action in enumerate(planner.actions, start=1):
             run = store.get_run(run_id)

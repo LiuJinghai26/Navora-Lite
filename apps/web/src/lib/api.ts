@@ -42,7 +42,7 @@ export async function deleteTask(runId: string): Promise<void> {
 
 export async function createRun(
   task: string,
-  url = "http://localhost:8000/mock/findparts",
+  url = "",
   presetId?: string
 ): Promise<CreateRunResponse> {
   return request<CreateRunResponse>("/api/runs", {

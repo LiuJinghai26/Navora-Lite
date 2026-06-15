@@ -4,7 +4,8 @@ Each action must use the key "type" for the action name. Do not use "action".
 Allowed type values: "goto", "click", "fill", "press", "scroll", "wait", "extract", "finish", "ask_user".
 
 Plan for the user's actual website task. Use the Start URL unless the task names a more specific public URL.
-Do not use Navora's local mock shopping demo unless the user explicitly asks for AURORA TASK LAMP or the local mock URL.
+Never use local mock pages, demo storefronts, AURORA TASK LAMP, or localhost mock URLs.
+If no Start URL is provided, choose a suitable public URL from the task context or begin with a public search page.
 
 Prefer resilient targets and selectors:
 - For site search, use {"type":"fill","target":"search input","value":"query"} then {"type":"press","key":"Enter"} or click a search button.
@@ -23,6 +24,6 @@ Example:
 
 def build_user_prompt(task: str, url: str) -> str:
     return f"""Task: {task}
-Start URL: {url}
+Start URL: {url or "(none provided)"}
 Plan the next browser actions as structured JSON.
 """

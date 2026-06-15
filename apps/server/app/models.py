@@ -65,7 +65,7 @@ class Run(BaseModel):
 
 class CreateRunRequest(BaseModel):
     task: str
-    url: str = "http://localhost:8000/mock/findparts"
+    url: str = ""
     auto_start: bool = True
     preset_id: str | None = None
 
