@@ -27,6 +27,7 @@ export function BrowserPreview({
 }) {
   const [fullscreen, setFullscreen] = useState(false);
   const latest = run.screenshots[run.screenshots.length - 1];
+  const runningStep = [...run.timeline].reverse().find((step) => step.status === "running");
   const resolvedImageUrl = useMemo(() => absoluteImageUrl(imageUrl || latest?.imageUrl), [imageUrl, latest?.imageUrl]);
 
   const stop = async () => {
@@ -41,7 +42,9 @@ export function BrowserPreview({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold text-white">Browser Preview</h2>
-          <p className="mt-1 text-xs text-slate-500">{live ? "Live latest screenshot" : imageTitle || "Selected timeline screenshot"}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {runningStep && live ? `Running: ${runningStep.description}` : live ? "Live latest screenshot" : imageTitle || "Selected timeline screenshot"}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -62,8 +65,20 @@ export function BrowserPreview({
           </button>
         </div>
       </div>
-      <div className="aspect-video overflow-hidden p-3 theme-input">
-        <img className="h-full w-full rounded-md object-contain" src={resolvedImageUrl} alt="Browser preview screenshot" />
+      <div className="relative aspect-video overflow-hidden p-3 theme-input">
+        <img
+          key={resolvedImageUrl}
+          className="h-full w-full rounded-md object-contain transition-opacity duration-200"
+          src={resolvedImageUrl}
+          alt="Browser preview screenshot"
+          loading="eager"
+        />
+        {runningStep && live ? (
+          <div className="pointer-events-none absolute left-5 top-5 max-w-[calc(100%-2.5rem)] rounded-md border border-cyan-400/35 bg-slate-950/80 px-3 py-2 text-xs text-cyan-100 shadow-glow">
+            <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
+            {runningStep.description}
+          </div>
+        ) : null}
       </div>
       <FullscreenPreviewDialog open={fullscreen} imageUrl={resolvedImageUrl} onClose={() => setFullscreen(false)} />
     </section>

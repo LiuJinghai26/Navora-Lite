@@ -2,13 +2,13 @@
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { StatusBadge } from "@/components/status-badge";
-import { createRun, deleteTask, getTasks } from "@/lib/api";
+import { createBatchTasks, createRun, deleteTask, getBatchPromptSources, getTasks } from "@/lib/api";
 import { PRESET_TASKS, type PresetTask } from "@/lib/preset-tasks";
-import type { Run, RunStatus } from "@/lib/types";
+import type { BatchPromptSource, Run, RunStatus } from "@/lib/types";
 import clsx from "clsx";
-import { BookOpen, Clock, ExternalLink, Filter, MessageSquare, Network, Newspaper, Play, RefreshCw, Search, Trash2 } from "lucide-react";
+import { BookOpen, Clock, ExternalLink, Filter, ListPlus, MessageSquare, Network, Newspaper, Play, RefreshCw, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 function formatDate(value?: string) {
   // Task cards need compact timestamps rather than full run header dates.
@@ -33,6 +33,18 @@ const presetIcons = {
   "mdn-api-research": Network
 };
 
+type BatchSourceGroup = {
+  file: string;
+  suite?: BatchPromptSource;
+  sections: BatchPromptSource[];
+};
+
+function batchSectionLabel(source: BatchPromptSource, suiteTitle?: string) {
+  if (!source.section) return source.title;
+  const prefix = suiteTitle ? `${suiteTitle} - ` : "";
+  return prefix && source.title.startsWith(prefix) ? source.title.slice(prefix.length) : source.title;
+}
+
 function matchesSearch(run: Run, query: string) {
   // Search combines identifiers, task text, status, and the latest visible message.
   const normalized = query.trim().toLowerCase();
@@ -51,27 +63,93 @@ export default function TasksPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
   const [startingPresetId, setStartingPresetId] = useState<string | null>(null);
+  const [batchSources, setBatchSources] = useState<BatchPromptSource[]>([]);
+  const [batchSource, setBatchSource] = useState("");
+  const [batchLimit, setBatchLimit] = useState(5);
+  const [batchOffset, setBatchOffset] = useState(0);
+  const [batchAllRemaining, setBatchAllRemaining] = useState(true);
+  const [batchRunSequentially, setBatchRunSequentially] = useState(true);
+  const [batchNotice, setBatchNotice] = useState("");
+  const [creatingBatch, setCreatingBatch] = useState(false);
+  const [activeBatchRunIds, setActiveBatchRunIds] = useState<string[]>([]);
+
+  const selectedBatchSource = useMemo(
+    () => batchSources.find((source) => source.id === batchSource),
+    [batchSources, batchSource]
+  );
+
+  const groupedBatchSources = useMemo(() => {
+    const groups: BatchSourceGroup[] = [];
+    const byFile = new Map<string, BatchSourceGroup>();
+    let allSource: BatchPromptSource | undefined;
+    for (const source of batchSources) {
+      if (source.id === "all") {
+        allSource = source;
+        continue;
+      }
+      const file = source.file || source.id.split("#")[0];
+      let group = byFile.get(file);
+      if (!group) {
+        group = { file, sections: [] };
+        byFile.set(file, group);
+        groups.push(group);
+      }
+      if (source.section) {
+        group.sections.push(source);
+      } else {
+        group.suite = source;
+      }
+    }
+    return { allSource, groups };
+  }, [batchSources]);
 
   const visibleTasks = useMemo(
     () => tasks.filter((task) => (statusFilter === "all" || task.status === statusFilter) && matchesSearch(task, query)),
     [tasks, query, statusFilter]
   );
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async (showLoading = true) => {
     // Refresh reads the backend's canonical local run history.
-    setLoading(true);
+    if (showLoading) setLoading(true);
     setError("");
     try {
-      setTasks(await getTasks());
+      const loaded = await getTasks();
+      setTasks(loaded);
+      return loaded;
     } catch {
       setError("Could not load task history. Start the FastAPI backend and try again.");
+      return [];
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadTasks();
+  }, [loadTasks]);
+
+  useEffect(() => {
+    if (activeBatchRunIds.length === 0) return undefined;
+    const timer = window.setInterval(() => {
+      void loadTasks(false).then((loaded) => {
+        const stillActive = loaded.some(
+          (task) => activeBatchRunIds.includes(task.id) && (task.status === "idle" || task.status === "running")
+        );
+        if (!stillActive) {
+          setActiveBatchRunIds([]);
+        }
+      });
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [activeBatchRunIds, loadTasks]);
+
+  useEffect(() => {
+    getBatchPromptSources()
+      .then((sources) => {
+        setBatchSources(sources);
+        setBatchSource((current) => current || sources[0]?.id || "");
+      })
+      .catch(() => undefined);
   }, []);
 
   const removeTask = async (task: Run) => {
@@ -119,6 +197,27 @@ export default function TasksPage() {
     }
   };
 
+  const createBatch = async () => {
+    if (!batchSource) return;
+    setCreatingBatch(true);
+    setError("");
+    setBatchNotice("");
+    try {
+      const response = await createBatchTasks(batchSource, batchLimit, batchOffset, batchAllRemaining, batchRunSequentially);
+      setBatchNotice(
+        response.run_sequentially
+          ? `Created ${response.count} tasks and started sequential testing.`
+          : `Created ${response.count} idle test tasks.`
+      );
+      setActiveBatchRunIds(response.run_sequentially ? response.run_ids : []);
+      await loadTasks();
+    } catch {
+      setError("Could not create batch test tasks. Check that the backend can read the prompt files.");
+    } finally {
+      setCreatingBatch(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-surface md:flex-row">
       <AppSidebar />
@@ -131,7 +230,7 @@ export default function TasksPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               className="inline-flex h-9 items-center gap-2 rounded-md border border-stroke bg-panelSoft px-3 text-sm font-semibold text-slate-200 hover:border-cyan-400/50 disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={loadTasks}
+              onClick={() => void loadTasks()}
               disabled={loading || deletingAll}
             >
               <RefreshCw className="h-4 w-4" />
@@ -183,6 +282,108 @@ export default function TasksPage() {
               );
             })}
           </div>
+        </section>
+
+        <section className="mb-5 grid gap-3 rounded-lg border border-stroke bg-panel p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Batch prompt tests</h2>
+              <p className="mt-1 text-xs text-slate-500">Create or run tasks from the Markdown prompt suites.</p>
+            </div>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_120px_120px_auto]">
+            <label className="grid gap-1 text-xs font-semibold text-slate-500">
+              Source
+              <select
+                className="h-10 rounded-md border border-stroke bg-panelSoft px-3 text-sm text-slate-100 outline-none"
+                value={batchSource}
+                onChange={(event) => setBatchSource(event.target.value)}
+              >
+                {groupedBatchSources.allSource ? (
+                  <option value={groupedBatchSources.allSource.id}>
+                    {groupedBatchSources.allSource.title} ({groupedBatchSources.allSource.count})
+                  </option>
+                ) : null}
+                {groupedBatchSources.groups.map((group) => (
+                  <optgroup key={group.file} label={group.suite?.title || group.file}>
+                    {group.suite ? (
+                      <option value={group.suite.id}>All in this file ({group.suite.count})</option>
+                    ) : null}
+                    {group.sections.map((source) => (
+                      <option key={source.id} value={source.id}>
+                        {batchSectionLabel(source, group.suite?.title)} ({source.count})
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs font-semibold text-slate-500">
+              Start
+              <input
+                className="h-10 rounded-md border border-stroke bg-panelSoft px-3 text-sm text-slate-100 outline-none"
+                min={0}
+                type="number"
+                value={batchOffset}
+                onChange={(event) => setBatchOffset(Math.max(Number(event.target.value) || 0, 0))}
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-semibold text-slate-500">
+              Count
+              <input
+                className="h-10 rounded-md border border-stroke bg-panelSoft px-3 text-sm text-slate-100 outline-none"
+                disabled={batchAllRemaining}
+                max={selectedBatchSource?.count || 140}
+                min={1}
+                type="number"
+                value={batchLimit}
+                onChange={(event) =>
+                  setBatchLimit(Math.min(Math.max(Number(event.target.value) || 1, 1), selectedBatchSource?.count || 140))
+                }
+              />
+            </label>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 self-end rounded-md border border-cyan-400/50 bg-cyan-400/10 px-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300 hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={createBatch}
+              disabled={creatingBatch || !batchSource}
+            >
+              <ListPlus className="h-4 w-4" />
+              {creatingBatch ? "Creating..." : batchRunSequentially ? "Start Batch" : "Create Batch"}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-3 text-xs text-slate-400">
+            <label className="inline-flex items-center gap-2">
+              <input
+                checked={batchAllRemaining}
+                className="h-4 w-4 accent-cyan-400"
+                type="checkbox"
+                onChange={(event) => setBatchAllRemaining(event.target.checked)}
+              />
+              All remaining
+            </label>
+            <label className="inline-flex items-center gap-2">
+              <input
+                checked={batchRunSequentially}
+                className="h-4 w-4 accent-cyan-400"
+                type="checkbox"
+                onChange={(event) => setBatchRunSequentially(event.target.checked)}
+              />
+              Run one by one
+            </label>
+            {selectedBatchSource ? (
+              <span>
+                Selected range: {batchOffset + 1}-
+                {Math.min(selectedBatchSource.count, batchAllRemaining ? selectedBatchSource.count : batchOffset + batchLimit)} of{" "}
+                {selectedBatchSource.count}
+              </span>
+            ) : null}
+          </div>
+          {batchNotice ? (
+            <p className="text-xs text-cyan-200">
+              {batchNotice}
+              {activeBatchRunIds.length > 0 ? " Refreshing while the batch is active." : ""}
+            </p>
+          ) : null}
         </section>
 
         <section className="mb-5 grid gap-3 rounded-lg border border-stroke bg-panel p-4">

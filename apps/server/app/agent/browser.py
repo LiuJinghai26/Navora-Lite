@@ -24,6 +24,25 @@ def _unique_selectors(selectors: list[str | None]) -> list[str]:
     return unique
 
 
+def _requested_fields(action: AgentAction) -> list[str]:
+    fields: list[str] = []
+
+    def collect(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, nested in value.items():
+                if key not in fields:
+                    fields.append(str(key))
+                collect(nested)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+
+    collect(action.extract_schema or {})
+    if not fields and action.target:
+        fields.extend(part.strip() for part in action.target.replace("/", " ").split(",") if part.strip())
+    return fields[:20]
+
+
 class BrowserSession:
     # Small protocol used by the runner; concrete sessions can swap browser implementations.
     async def execute(self, action: AgentAction) -> Any:
@@ -87,7 +106,7 @@ class PlaywrightBrowserSession(BrowserSession):
             if target == "httpbin form echo":
                 return await self._extract_httpbin_form_echo()
             if target == "page summary":
-                return await self._extract_page_summary()
+                return await self._extract_task_aligned_page_data(action)
             if "news.ycombinator.com" in self.page.url:
                 return await self._extract_hacker_news_stories()
             if "github.com/trending" in self.page.url:
@@ -97,7 +116,7 @@ class PlaywrightBrowserSession(BrowserSession):
                 return await self._extract_wikipedia_article_summary()
             if "httpbin.org/post" in self.page.url:
                 return await self._extract_httpbin_form_echo()
-            return await self._extract_page_summary()
+            return await self._extract_task_aligned_page_data(action)
         return None
 
     async def _fill(self, action: AgentAction) -> None:
@@ -595,6 +614,105 @@ class PlaywrightBrowserSession(BrowserSession):
                     links
                 };
             }"""
+        )
+
+    async def _extract_task_aligned_page_data(self, action: AgentAction) -> Any:
+        return await self._evaluate(
+            """(request) => {
+                const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+                const visible = (element) => {
+                    const rect = element.getBoundingClientRect();
+                    const style = window.getComputedStyle(element);
+                    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+                };
+                const requestedFields = Array.from(new Set((request.fields || []).map(clean).filter(Boolean)));
+                const bodyText = clean(document.body?.innerText || '');
+                const lines = bodyText.split(/\\n+/).map(clean).filter(Boolean);
+                const headings = Array.from(document.querySelectorAll('h1, h2, h3'))
+                    .map((heading) => clean(heading.textContent))
+                    .filter(Boolean)
+                    .slice(0, 10);
+                const links = Array.from(document.querySelectorAll('a[href]'))
+                    .filter(visible)
+                    .map((link) => ({ text: clean(link.textContent), href: link.href }))
+                    .filter((link) => link.text)
+                    .slice(0, 20);
+                const labelValuePairs = [];
+                for (const row of Array.from(document.querySelectorAll('tr'))) {
+                    const key = clean(row.querySelector('th')?.textContent);
+                    const value = clean(row.querySelector('td')?.textContent);
+                    if (key && value) labelValuePairs.push({ key, value });
+                }
+                for (const item of Array.from(document.querySelectorAll('dt'))) {
+                    const key = clean(item.textContent);
+                    const value = clean(item.nextElementSibling?.textContent);
+                    if (key && value) labelValuePairs.push({ key, value });
+                }
+
+                const regexValue = (field) => {
+                    if (/price|cost|价格|总价|每晚/i.test(field)) {
+                        return bodyText.match(/(?:[$€£]\\s?\\d[\\d,.]*|\\d[\\d,.]*\\s?(?:USD|EUR|GBP|美元|元))/i)?.[0] || '';
+                    }
+                    if (/rating|score|评分|星级/i.test(field)) {
+                        return bodyText.match(/\\b\\d(?:\\.\\d)?\\s?(?:out of|\\/|stars?|分|星)\\s?\\d?/i)?.[0] || '';
+                    }
+                    if (/date|time|时间|日期|发布|出生/i.test(field)) {
+                        return bodyText.match(/\\b(?:\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}|\\d{1,2}:\\d{2}|\\w+ \\d{1,2}, \\d{4})\\b/i)?.[0] || '';
+                    }
+                    return '';
+                };
+                const fieldMatches = {};
+                for (const field of requestedFields) {
+                    const key = field.toLowerCase();
+                    const pair = labelValuePairs.find((item) => item.key.toLowerCase().includes(key) || key.includes(item.key.toLowerCase()));
+                    const line = lines.find((item) => item.toLowerCase().includes(key));
+                    fieldMatches[field] = pair?.value || regexValue(field) || line || '';
+                }
+
+                const containers = Array.from(document.querySelectorAll(
+                    'article, [role="listitem"], li, [class*="product" i], [class*="card" i], [class*="result" i], [data-testid*="product" i], [data-testid*="result" i]'
+                )).filter(visible);
+                const seen = new Set();
+                const records = [];
+                for (const container of containers) {
+                    const text = clean(container.textContent);
+                    if (text.length < 20 || text.length > 1800) continue;
+                    const title = clean(container.querySelector('h1, h2, h3, h4, a, [data-testid*="title" i]')?.textContent);
+                    const price = text.match(/(?:[$€£]\\s?\\d[\\d,.]*|\\d[\\d,.]*\\s?(?:USD|EUR|GBP|美元|元))/i)?.[0] || '';
+                    const rating = text.match(/\\b\\d(?:\\.\\d)?\\s?(?:out of|\\/|stars?|分|星)\\s?\\d?/i)?.[0] || '';
+                    const href = container.querySelector('a[href]')?.href || '';
+                    const signature = `${title}|${price}|${text.slice(0, 80)}`;
+                    if ((!title && !price && !rating) || seen.has(signature)) continue;
+                    seen.add(signature);
+                    records.push({
+                        title,
+                        price,
+                        rating,
+                        url: href,
+                        text: text.slice(0, 500)
+                    });
+                    if (records.length >= 10) break;
+                }
+
+                return {
+                    page_title: document.title,
+                    url: window.location.href,
+                    heading: clean(document.querySelector('h1')?.textContent),
+                    request: {
+                        target: request.target || '',
+                        requested_fields: requestedFields
+                    },
+                    field_matches: fieldMatches,
+                    records,
+                    headings,
+                    links,
+                    paragraphs: Array.from(document.querySelectorAll('main p, article p, p'))
+                        .map((paragraph) => clean(paragraph.textContent))
+                        .filter((text) => text.length > 40)
+                        .slice(0, 5)
+                };
+            }""",
+            {"target": action.target or "", "fields": _requested_fields(action)},
         )
 
     async def screenshot(self, path: Path, label: str) -> None:

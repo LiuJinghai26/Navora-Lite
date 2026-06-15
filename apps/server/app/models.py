@@ -76,6 +76,28 @@ class CreateRunResponse(BaseModel):
     status: RunStatus
 
 
+class BatchPromptSource(BaseModel):
+    id: str
+    title: str
+    count: int
+    file: str | None = None
+    section: str | None = None
+
+
+class CreateBatchTasksRequest(BaseModel):
+    source: str
+    limit: int = 5
+    offset: int = 0
+    all_remaining: bool = False
+    run_sequentially: bool = False
+
+
+class CreateBatchTasksResponse(BaseModel):
+    run_ids: list[str]
+    count: int
+    run_sequentially: bool = False
+
+
 class SettingsPayload(BaseModel):
     MODEL_PROVIDER: str = "openai-compatible"
     MODEL_NAME: str = "qwen3-32b"
