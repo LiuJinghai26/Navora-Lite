@@ -3,6 +3,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+# Planner output is normalized into this single action model before any browser work starts.
 class AgentAction(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -24,6 +25,7 @@ class AgentAction(BaseModel):
 
 
 def describe_action(action: AgentAction) -> str:
+    # Timeline labels are generated server-side so SSE clients render consistent text.
     if action.type == "goto":
         return f"Navigate to {action.url}"
     if action.type == "fill":
@@ -47,6 +49,7 @@ def target_to_selector(target: str | None) -> str | None:
     if not target:
         return None
     key = target.lower()
+    # Only stable, app-level semantic targets live here; real sites should prefer explicit selectors.
     mapping = {
         "search input": "#search-input",
         "search field": "#search-input",

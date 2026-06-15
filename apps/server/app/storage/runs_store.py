@@ -15,6 +15,7 @@ def _to_dict(model: Any) -> dict[str, Any]:
 
 class RunsStore:
     def __init__(self, storage_path: Path):
+        # Keep all run state in memory, with JSON persistence after each mutation.
         self.storage_path = storage_path
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         self._runs: dict[str, Run] = {}
@@ -22,6 +23,7 @@ class RunsStore:
         self._load()
 
     def _load(self) -> None:
+        # Corrupt local state should not prevent the dev server from starting.
         if not self.storage_path.exists():
             return
         try:
@@ -33,10 +35,12 @@ class RunsStore:
             self._runs[run.id] = run
 
     def _save(self) -> None:
+        # A single JSON file is enough for local development and demos.
         data = {"runs": [_to_dict(run) for run in self._runs.values()]}
         self.storage_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def list_runs(self) -> list[Run]:
+        # Most recent started runs should appear first in the task history.
         return sorted(self._runs.values(), key=lambda run: run.startedAt or "", reverse=True)
 
     def create_run(self, run: Run) -> Run:
@@ -48,6 +52,7 @@ class RunsStore:
         return self._runs.get(run_id)
 
     def delete_run(self, run_id: str) -> Run | None:
+        # Drop subscribers too so deleted history items stop receiving events.
         run = self._runs.pop(run_id, None)
         if run is None:
             return None
@@ -89,6 +94,7 @@ class RunsStore:
         self.update_run(run, RunEvent(type="screenshot", image_url=screenshot.imageUrl, run=run))
 
     def set_status(self, run_id: str, status: str) -> None:
+        # controlStatus mirrors run status for the browser-control UI.
         run = self._runs[run_id]
         run.status = status  # type: ignore[assignment]
         if status == "running":
@@ -107,6 +113,7 @@ class RunsStore:
         self.update_run(run, RunEvent(type="extracted", data=data, run=run))
 
     def request_stop(self, run_id: str) -> Run | None:
+        # The runner observes stopRequested at action boundaries.
         run = self._runs.get(run_id)
         if run is None:
             return None
@@ -123,6 +130,7 @@ class RunsStore:
             queue.put_nowait(event)
 
     async def subscribe(self, run_id: str):
+        # Each client gets its own queue so slow consumers do not block other clients.
         queue: asyncio.Queue[RunEvent] = asyncio.Queue()
         self._subscribers.setdefault(run_id, set()).add(queue)
         try:

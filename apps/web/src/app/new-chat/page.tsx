@@ -13,6 +13,7 @@ const examples = [
 ];
 
 function hasPlannerConfig(settings: Record<string, unknown>) {
+  // Local providers use OpenAI-compatible endpoints but do not require API keys.
   const provider = String(settings.MODEL_PROVIDER || "").toLowerCase();
   const hasApiBase = Boolean(String(settings.API_BASE || "").trim());
   const hasApiKey = Boolean(String(settings.API_KEY || "").trim());
@@ -32,6 +33,7 @@ export default function NewChatPage() {
     setBusy(true);
     setError("");
     try {
+      // The backend enforces the same gate; checking here gives the user faster feedback.
       const settings = await getSettings();
       if (!hasPlannerConfig(settings)) {
         const message = "请先在 Settings 中配置模型 API，再启动浏览器任务。";
@@ -70,6 +72,7 @@ export default function NewChatPage() {
               onChange={(event) => setTask(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
+                  // Enter submits, while Shift+Enter keeps multiline task editing available.
                   event.preventDefault();
                   void submit();
                 }

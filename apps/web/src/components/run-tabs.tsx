@@ -12,10 +12,12 @@ import { ExtractedInformation } from "./extracted-information";
 const tabs = ["Overview", "Output", "Inputs", "Recording", "Code"];
 
 function JsonPanel({ data }: { data: unknown }) {
+  // Shared JSON panel for raw output and input inspection tabs.
   return <pre className="overflow-auto rounded-lg border border-stroke bg-panel p-4 text-sm text-cyan-100">{JSON.stringify(data, null, 2)}</pre>;
 }
 
 function Recording({ run }: { run: Run }) {
+  // Recording shows all captured screenshots instead of only the latest preview image.
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {run.screenshots.map((shot) => {
@@ -32,6 +34,7 @@ function Recording({ run }: { run: Run }) {
 }
 
 function CodePanel({ run }: { run: Run }) {
+  // Code snippets mirror the current run so users can reproduce the task outside the UI.
   return (
     <div className="grid gap-4">
       <pre className="overflow-auto rounded-lg border border-stroke bg-panel p-4 text-sm text-cyan-100">
@@ -58,12 +61,14 @@ export function RunTabs({ run }: { run: Run }) {
   );
 
   useEffect(() => {
+    // Live runs should follow the latest screenshot rather than a stale selected step.
     if (run.status === "running") {
       setSelectedStepId(null);
     }
   }, [run.screenshots.length, run.status]);
 
   const selectTimelineStep = (step: TimelineStep) => {
+    // Selecting a timeline row switches back to Overview where Browser Preview lives.
     setSelectedStepId(step.id);
     setActiveTab("Overview");
     document.getElementById("browser-preview")?.scrollIntoView({ behavior: "smooth", block: "start" });

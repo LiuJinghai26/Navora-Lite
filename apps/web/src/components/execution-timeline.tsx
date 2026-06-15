@@ -3,6 +3,7 @@ import { CheckCircle2, CircleDashed, ImageIcon, OctagonAlert, PauseCircle } from
 import type { StepStatus, TimelineStep } from "@/lib/types";
 
 function iconFor(status: StepStatus) {
+  // Timeline icons compress the step lifecycle into a quick visual status.
   if (status === "success") return <CheckCircle2 className="h-4 w-4 text-emerald-300" />;
   if (status === "failed") return <OctagonAlert className="h-4 w-4 text-red-300" />;
   if (status === "stopped") return <PauseCircle className="h-4 w-4 text-amber-300" />;
@@ -16,6 +17,7 @@ function time(value?: string) {
 }
 
 function duration(ms?: number) {
+  // Empty or zero durations are displayed as placeholders in compact rows.
   if (!ms) return "--";
   return `${(ms / 1000).toFixed(1)}s`;
 }
@@ -29,6 +31,7 @@ export function ExecutionTimeline({
   selectedStepId?: string | null;
   onSelectStep?: (step: TimelineStep) => void;
 }) {
+  // Only steps with screenshots are selectable because they can update Browser Preview.
   return (
     <section className="min-w-0 rounded-lg border border-stroke bg-panel">
       <div className="border-b border-stroke px-4 py-3">

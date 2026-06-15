@@ -10,6 +10,7 @@ client = TestClient(app)
 
 
 def test_runs_api_create_get_stop():
+    # Basic lifecycle coverage for an idle run that does not start the browser.
     response = client.post(
         "/api/runs",
         json={
@@ -51,6 +52,7 @@ def test_runs_api_preserves_preset_metadata():
 
 
 def test_runs_api_requires_model_config_for_auto_started_free_task(monkeypatch):
+    # Free-form auto-start is blocked without model settings.
     monkeypatch.setattr(
         runs,
         "get_settings",
@@ -109,6 +111,7 @@ def test_runs_api_clears_disabled_mock_url_without_task_url():
 
 
 def test_mock_page_is_removed():
+    # The disabled local shopping demo should stay unreachable.
     response = client.get("/mock/findparts")
     assert response.status_code == 404
 

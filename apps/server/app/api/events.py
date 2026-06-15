@@ -7,6 +7,7 @@ router = APIRouter(prefix="/api/runs", tags=["events"])
 
 
 def _event_payload(event) -> str:
+    # Serialize Pydantic models in JSON mode so datetimes and aliases are client-safe.
     if hasattr(event, "model_dump"):
         data = event.model_dump(mode="json", exclude_none=True)
     else:
@@ -16,6 +17,7 @@ def _event_payload(event) -> str:
 
 @router.get("/{run_id}/events")
 async def run_events(run_id: str, request: Request) -> StreamingResponse:
+    # SSE clients subscribe to one run at a time; missing runs fail fast with 404.
     store = request.app.state.runs_store
     run = store.get_run(run_id)
     if run is None:
@@ -28,6 +30,7 @@ async def run_events(run_id: str, request: Request) -> StreamingResponse:
             while True:
                 if await request.is_disconnected():
                     return
+                # Queue items are produced by RunsStore mutations in the runner and API handlers.
                 event = await queue.get()
                 yield _event_payload(event)
 

@@ -2,6 +2,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Monitor, Radio } from "lucide-react";
 
 export default function SessionsPage() {
+  // Session state is static for now because the backend owns one Chromium profile per run.
   return (
     <div className="flex min-h-screen flex-col bg-surface md:flex-row">
       <AppSidebar />

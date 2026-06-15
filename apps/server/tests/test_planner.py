@@ -7,6 +7,7 @@ from app.llm.schemas import TaskRecognitionError
 
 
 def test_parse_actions_accepts_model_action_alias():
+    # Some models emit "action"; the parser normalizes it to AgentAction.type.
     actions = _parse_actions('[{"action":"goto","url":"https://example.com"}]')
 
     assert actions[0].type == "goto"
@@ -43,6 +44,7 @@ def test_recognized_task_plan_does_not_use_mock_for_aurora_demo():
 
 
 def test_recognized_task_plan_handles_chinese_grace_hopper_prompt():
+    # Chinese prompts still route to the direct article plan when the entity is recognized.
     actions = recognized_task_plan(
         "打开 `https://www.wikipedia.org/`，搜索 `Grace Hopper`，进入英文条目，提取页面标题、第一段摘要和信息",
         "https://www.wikipedia.org/",
@@ -55,6 +57,7 @@ def test_recognized_task_plan_handles_chinese_grace_hopper_prompt():
 
 
 def test_extraction_failure_detects_blocked_page():
+    # Bot-wall text should fail the run rather than produce misleading extracted output.
     result = {
         "page_title": "Just a moment...",
         "url": "https://example.com/",

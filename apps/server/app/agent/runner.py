@@ -32,6 +32,7 @@ BLOCKED_EXTRACTION_MARKERS = (
 
 
 def now_iso() -> str:
+    # Store timestamps as UTC ISO strings for easy JSON persistence and frontend formatting.
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -40,10 +41,12 @@ def ms_since(start: float) -> int:
 
 
 def artifact_url(settings: Settings, path: Path) -> str:
+    # FastAPI serves artifact files from the mounted /artifacts route.
     return f"/artifacts/{path.name}"
 
 
 def step_to_checklist(action: AgentAction) -> str:
+    # Checklist text is friendlier than raw planner action names in the chat transcript.
     if action.type == "goto":
         return f"Open {action.url or 'the target page'}"
     if action.type == "wait":
@@ -203,6 +206,7 @@ def _extraction_failure_message(result: Any) -> str | None:
     if not isinstance(result, dict):
         return None
 
+    # Treat bot walls and empty generic summaries as execution failures, not successful extracts.
     content = json.dumps(result, ensure_ascii=False).casefold()
     if any(marker in content for marker in BLOCKED_EXTRACTION_MARKERS):
         return "The site blocked automated browsing or showed a verification page."
@@ -214,6 +218,7 @@ def _extraction_failure_message(result: Any) -> str | None:
 
 
 def _is_empty_page_summary(result: dict[str, Any]) -> bool:
+    # Generic page summaries should contain at least one user-visible signal.
     if not {"page_title", "url", "paragraphs", "headings", "links"}.issubset(result):
         return False
 
@@ -226,6 +231,7 @@ def _is_empty_page_summary(result: dict[str, Any]) -> bool:
 
 
 def _mark_failed(run_id: str, store: RunsStore, failure_type: FailureType, action: str, error: str, started_at: float) -> None:
+    # Planning and recognition failures still get a timeline row so the UI has context.
     step = TimelineStep(
         id=f"step_{uuid4().hex[:10]}",
         index=0,
@@ -257,6 +263,7 @@ def _mark_failed(run_id: str, store: RunsStore, failure_type: FailureType, actio
 
 
 async def _mark_stopped(run_id: str, store: RunsStore) -> None:
+    # Stopped runs use a synthetic final step because the user action happens outside the browser.
     store.set_status(run_id, "stopped")
     store.add_step(
         run_id,

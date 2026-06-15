@@ -15,6 +15,7 @@ DISABLED_MOCK_URL = "http://localhost:8000/mock/findparts"
 
 
 def _title_for_task(task: str, preset_id: str | None = None) -> str:
+    # Prefer stable product titles for known presets, otherwise derive a compact run title.
     if preset_id and preset_id in PRESET_TASKS:
         return str(PRESET_TASKS[preset_id]["title"])
     if "HACKER NEWS" in task.upper():
@@ -27,10 +28,12 @@ def _title_for_task(task: str, preset_id: str | None = None) -> str:
 
 
 def _now() -> str:
+    # UTC keeps persisted runs independent from the developer machine timezone.
     return datetime.now(timezone.utc).isoformat()
 
 
 def _start_url_for_task(task: str, url: str) -> str:
+    # Task text can contain the only useful URL when the form starts empty.
     match = re.search(r"https?://[^\s`，。；,;]+", task)
     if match and (not url or url == DISABLED_MOCK_URL):
         return match.group(0).rstrip(").]")
@@ -41,6 +44,7 @@ def _start_url_for_task(task: str, url: str) -> str:
 
 @router.post("", response_model=CreateRunResponse)
 async def create_run(payload: CreateRunRequest, request: Request, background_tasks: BackgroundTasks) -> CreateRunResponse:
+    # Free-form auto-start runs need model settings; presets are the model-free path.
     store = request.app.state.runs_store
     settings = get_settings()
     start_url = _start_url_for_task(payload.task, payload.url)
@@ -100,6 +104,7 @@ async def stop_run(run_id: str, request: Request) -> Run:
 
 @router.post("/{run_id}/rerun", response_model=CreateRunResponse)
 async def rerun(run_id: str, request: Request, background_tasks: BackgroundTasks) -> CreateRunResponse:
+    # Rerun creates a fresh run record so the original history item remains immutable.
     old_run = request.app.state.runs_store.get_run(run_id)
     if old_run is None:
         raise HTTPException(status_code=404, detail="Run not found")

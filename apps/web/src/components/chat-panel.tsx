@@ -11,6 +11,7 @@ export function ChatPanel({ run }: { run: Run }) {
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
+    // Submitting from a run page creates a new run rather than mutating the current one.
     const trimmed = task.trim();
     if (!trimmed) return;
     setBusy(true);
@@ -23,6 +24,7 @@ export function ChatPanel({ run }: { run: Run }) {
   };
 
   const stop = async () => {
+    // Demo state is static, so stop requests only apply to backend-backed runs.
     if (run.id !== "demo") {
       await stopRun(run.id);
     }

@@ -1,6 +1,7 @@
 from app.agent.actions import AgentAction
 
 
+# Presets provide model-free browser demos from the Tasks page.
 PRESET_TASKS = {
     "hn-top-story": {
         "title": "Hacker News Top Story",
@@ -41,4 +42,5 @@ def preset_plan(preset_id: str | None) -> list[AgentAction] | None:
     preset = PRESET_TASKS.get(preset_id)
     if not preset:
         return None
+    # Return copies so a run cannot mutate shared preset action objects.
     return [action.model_copy(deep=True) for action in preset["actions"]]

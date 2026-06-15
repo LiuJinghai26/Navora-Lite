@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 type SettingsRecord = Record<string, unknown>;
 
 function value(settings: SettingsRecord | null, key: string, fallback = "Not configured") {
+  // Keep settings summary readable while the backend is still loading.
   const current = settings?.[key];
   if (current === undefined || current === null || current === "") return fallback;
   return String(current);
@@ -23,6 +24,7 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // Theme is local to the browser; model settings come from the FastAPI backend.
     setTheme(getStoredTheme());
     getSettings()
       .then(setSettings)
@@ -30,6 +32,7 @@ export default function SettingsPage() {
   }, []);
 
   const selectTheme = (nextTheme: ThemeName) => {
+    // Persist and broadcast theme changes through the shared theme helper.
     setTheme(nextTheme);
     storeTheme(nextTheme);
   };

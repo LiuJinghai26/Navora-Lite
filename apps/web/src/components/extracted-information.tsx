@@ -5,10 +5,12 @@ import { useMemo, useState } from "react";
 
 export function ExtractedInformation({ data }: { data: unknown }) {
   const [copied, setCopied] = useState(false);
+  // Memoize formatted JSON so copying and rendering use the exact same text.
   const text = useMemo(() => JSON.stringify(data ?? {}, null, 2), [data]);
   const lines = text.split("\n");
 
   const copy = async () => {
+    // Reset the copied state shortly after the clipboard write for lightweight feedback.
     await navigator.clipboard.writeText(text);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);

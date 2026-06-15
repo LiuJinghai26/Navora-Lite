@@ -2,19 +2,30 @@
 
 [中文文档](./README.zh-CN.md)
 
-Navora Lite is a chat-first browser Agent Dashboard. It lets a user start a browser automation run from a central chat panel, then watch the browser preview, timeline, screenshots, and extracted JSON update in real time.
+Navora Lite is a chat-first browser Agent Dashboard. It lets a user create browser automation runs, watch the live run state, review screenshots and timeline steps, and inspect structured extraction output from one local workspace.
 
-The default demo does not require a real model service. If no model endpoint is configured, the backend automatically uses the mock planner and runs the local mock commerce flow.
+## Technical Documentation
+
+- [Technical Report (English)](./docs/TECHNICAL.md)
+- [技术报告（中文）](./docs/TECHNICAL.zh-CN.md)
 
 ## What You Get
 
-- Chat-first dashboard with the Chat Panel above the tabs.
-- Sidebar, Run Header, Overview, Output, Inputs, Recording, and Code tabs.
-- Browser Preview with fullscreen mode, Controlling status, and Stop Controlling.
-- FastAPI backend with runs API, settings API, mock commerce page, and SSE events.
-- Playwright browser execution with a mock browser fallback.
-- OpenAI-compatible model configuration for API key and local model endpoints.
-- CLI scripts for running the demo, stopping a run, and exporting run logs.
+- Chat-first task entry through New Chat.
+- Tasks dashboard with preset website demos, history search, status filters, and local history deletion.
+- Run detail page with Chat Panel, Run Header, Browser Preview, Execution Timeline, Recording, Output, Inputs, and Code tabs.
+- FastAPI backend with runs, tasks, settings, and SSE event APIs.
+- Playwright Chromium execution for real browser tasks.
+- OpenAI-compatible model configuration for hosted or local model endpoints.
+- Local JSON run storage and screenshot artifacts.
+- CLI scripts for starting, stopping, and exporting runs.
+
+## Current Behavior
+
+- Preset tasks can run without a model API because their action plans are built into the backend.
+- Free-form browser tasks require model settings before they can auto-start.
+- The old local mock shopping page is disabled and no longer exposed as `/mock/findparts`.
+- If Playwright or Chromium cannot launch, the run fails with an execution error. Install Chromium with Playwright before running browser tasks.
 
 ## Requirements
 
@@ -40,17 +51,11 @@ navora-lite/
   apps/
     server/       FastAPI backend
     web/          Next.js frontend
-  scripts/        Demo, stop, and export CLI scripts
+  scripts/        Run, stop, and export CLI scripts
   docs/           Technical documentation
   README.md
   README.zh-CN.md
   .env.example
-```
-
-Generated visual asset:
-
-```text
-apps/web/public/assets/browser-preview-placeholder.png
 ```
 
 ## Quick Start: Bash
@@ -87,8 +92,6 @@ python -m playwright install chromium
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-This is faster for quick demos, but it installs dependencies into the active Python environment. If you already use Python for other projects, the virtual environment flow is safer.
-
 Backend health check:
 
 ```bash
@@ -114,33 +117,46 @@ pnpm dev
 Open:
 
 ```text
-http://localhost:3000/runs/demo
+http://localhost:3000/new-chat
 ```
 
-### 4. Run Demo CLI
+To run without model configuration, open:
 
-Run this in terminal 3 after the backend is running:
-
-```bash
-cd navora-lite
-python scripts/run_demo.py \
-  --task "Find the AURORA TASK LAMP, choose Warm White, set quantity to 2, add it to the cart, and extract the cart summary" \
-  --url "http://localhost:8000/mock/findparts"
+```text
+http://localhost:3000/tasks
 ```
 
-Expected final result:
+Then start one of the preset website demos.
 
-```json
-{
-  "status": "completed",
-  "extracted": {
-    "product_name": "AURORA TASK LAMP",
-    "color": "Warm White",
-    "quantity": 2,
-    "subtotal": "$178"
-  }
-}
+### 4. Configure a Model for Free-Form Tasks
+
+Open Settings in the app or edit:
+
+```text
+apps/server/.env
 ```
+
+For OpenAI-compatible endpoints:
+
+```env
+MODEL_PROVIDER=openai-compatible
+MODEL_NAME=qwen3-32b
+API_BASE=http://localhost:8001/v1
+API_KEY=your-api-key
+MAX_TOKENS=4096
+TEMPERATURE=0.2
+```
+
+For local providers, the API key can be empty:
+
+```env
+MODEL_PROVIDER=ollama
+MODEL_NAME=qwen3:latest
+API_BASE=http://localhost:11434/v1
+API_KEY=
+```
+
+After saving settings through the UI, the backend writes `apps/server/.env` and refreshes the cached settings.
 
 ## Quick Start: Windows PowerShell
 
@@ -175,8 +191,6 @@ python -m playwright install chromium
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-This is faster for quick demos, but it installs dependencies into the active Python environment. If you already use Python for other projects, the virtual environment flow is safer.
-
 Backend health check:
 
 ```powershell
@@ -202,40 +216,19 @@ pnpm.cmd dev
 Open:
 
 ```text
-http://localhost:3000/runs/demo
+http://localhost:3000/new-chat
 ```
 
-### 4. Run Demo CLI
-
-Run this in PowerShell window 3 after the backend is running:
-
-```powershell
-cd navora-lite
-python scripts/run_demo.py `
-  --task "Find the AURORA TASK LAMP, choose Warm White, set quantity to 2, add it to the cart, and extract the cart summary" `
-  --url "http://localhost:8000/mock/findparts"
-```
-
-Expected final result:
-
-```json
-{
-  "status": "completed",
-  "extracted": {
-    "product_name": "AURORA TASK LAMP",
-    "color": "Warm White",
-    "quantity": 2,
-    "subtotal": "$178"
-  }
-}
-```
+For a model-free smoke test, open `http://localhost:3000/tasks` and run a preset task.
 
 ## CLI Commands
 
-Run demo:
+The CLI talks to the same backend API as the web UI. Because `run_demo.py` creates a free-form run, configure a model first.
+
+Run a task:
 
 ```bash
-python scripts/run_demo.py --task "Find the AURORA TASK LAMP, choose Warm White, set quantity to 2, add it to the cart, and extract the cart summary" --url "http://localhost:8000/mock/findparts"
+python scripts/run_demo.py --task "Open Hacker News and extract the current top story with its source, score, age, and comments." --url "https://news.ycombinator.com/"
 ```
 
 Stop a run:
@@ -285,56 +278,18 @@ cd navora-lite/apps/server
 python -m pytest
 ```
 
-## Model Configuration
-
-Edit `apps/server/.env`.
-
-OpenAI-compatible API:
-
-```env
-MODEL_PROVIDER=openai-compatible
-MODEL_NAME=qwen3-32b
-API_BASE=http://localhost:8001/v1
-API_KEY=your-api-key
-MAX_TOKENS=4096
-TEMPERATURE=0.2
-```
-
-Ollama:
-
-```env
-MODEL_PROVIDER=ollama
-MODEL_NAME=qwen3:latest
-API_BASE=http://localhost:11434/v1
-API_KEY=
-```
-
-LM Studio:
-
-```env
-MODEL_PROVIDER=lmstudio
-MODEL_NAME=qwen3-4bit
-API_BASE=http://localhost:1234/v1
-API_KEY=
-```
-
-vLLM:
-
-```env
-MODEL_PROVIDER=vllm
-MODEL_NAME=Qwen/Qwen3-32B
-API_BASE=http://localhost:8001/v1
-API_KEY=
-```
-
-If the model call fails, times out, returns invalid JSON, or no endpoint is configured, Navora Lite automatically falls back to the mock planner.
-
 ## API Reference
 
 Create run:
 
 ```http
 POST /api/runs
+```
+
+List runs:
+
+```http
+GET /api/runs
 ```
 
 Get run:
@@ -361,10 +316,18 @@ SSE events:
 GET /api/runs/{run_id}/events
 ```
 
-Mock commerce page:
+Task history:
 
 ```http
-GET /mock/findparts
+GET /api/tasks
+DELETE /api/tasks/{run_id}
+```
+
+Settings:
+
+```http
+GET /api/settings
+POST /api/settings
 ```
 
 ## Troubleshooting
@@ -386,18 +349,15 @@ Install Chromium:
 python -m playwright install chromium
 ```
 
-If Chromium still cannot launch, the backend falls back to a mock browser and writes SVG screenshots so the demo can continue.
+### Free-Form Tasks Require Model Settings
 
-### Install Backend Dependencies Without a Virtual Environment
+If New Chat shows:
 
-For quick demos:
-
-```bash
-cd navora-lite/apps/server
-python -m pip install -r requirements.txt
+```text
+请先在 Settings 中配置模型 API，再启动浏览器任务。
 ```
 
-Use a virtual environment if global dependency conflicts appear.
+open Settings and configure an OpenAI-compatible `/v1` endpoint, or run a preset task from the Tasks page.
 
 ### Port Already in Use
 
@@ -419,38 +379,19 @@ PowerShell frontend alternative:
 pnpm.cmd exec next dev -p 3001
 ```
 
-### No Model Configured
-
-This is expected for the default demo. The backend uses the mock planner and still completes the Aurora lamp cart-summary task.
-
-## Notes
-
-- `docker-compose.yml` is optional and not required for the local MVP workflow.
-- Architecture, API, run lifecycle, Agent execution details, and extension notes are documented in [docs/TECHNICAL.zh-CN.md](./docs/TECHNICAL.zh-CN.md).
-- The mock commerce page has a Checkout button, but the agent intentionally does not use it.
-- Safety guards block high-risk actions such as payment, order submission, password changes, account deletion, captcha bypass, and sensitive uploads.
-
-## Startup and Install Troubleshooting
-
-These are common issues seen during local startup.
-
 ### Browser Opens `localhost:3000`, but the App Fails or Shows `missing required error components`
 
-Symptom:
+If Next.js reports:
 
 ```text
 Port 3000 is in use, trying 3001 instead.
 Local: http://localhost:3001
 ```
 
-Cause:
-
-Another old Next.js / Node process is already using port `3000`, so the new frontend starts on `3001`. If you still open `http://localhost:3000/runs/demo`, you are visiting the old process, not the frontend you just started.
-
-Quick fix:
+open the port printed by the current dev server, for example:
 
 ```text
-http://localhost:3001/runs/demo
+http://localhost:3001/new-chat
 ```
 
 PowerShell cleanup if you want to use `3000` again:
@@ -463,48 +404,17 @@ cd "E:\codex\Navora Lite\navora-lite\apps\web"
 pnpm.cmd dev
 ```
 
-After restart, open:
-
-```text
-http://localhost:3000/runs/demo
-```
-
 ### `pnpm approve-builds` Fails in PowerShell
 
-Symptom:
-
-```text
-Ignored build scripts: unrs-resolver@...
-Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.
-```
-
-Then this command fails:
-
-```powershell
-pnpm approve-builds
-```
-
-with:
-
-```text
-pnpm.ps1 cannot be loaded because running scripts is disabled on this system.
-```
-
-Cause:
-
-PowerShell blocks the `pnpm.ps1` script because of the local execution policy. The install warning itself is usually not fatal, but if you want to approve the package build script, call the `.cmd` launcher instead.
-
-Fix:
+If `pnpm approve-builds` fails because PowerShell blocks `pnpm.ps1`, call the `.cmd` launcher:
 
 ```powershell
 cd "E:\codex\Navora Lite\navora-lite\apps\web"
 pnpm.cmd approve-builds
 ```
 
-In the prompt, select `unrs-resolver`, approve it, and let pnpm run the postinstall script. You can also continue using `pnpm.cmd` for normal frontend commands:
+## Notes
 
-```powershell
-pnpm.cmd install
-pnpm.cmd dev
-pnpm.cmd build
-```
+- `docker-compose.yml` is optional and only starts the backend service.
+- The backend stores runs in `apps/server/data/runs.json` and screenshots in `apps/server/data/artifacts`.
+- Safety guards block high-risk actions such as payment, order submission, password changes, account deletion, captcha bypass, and sensitive uploads.

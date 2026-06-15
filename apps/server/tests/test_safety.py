@@ -5,6 +5,7 @@ from app.agent.safety import assert_safe_action
 
 
 def test_safety_blocks_high_risk_actions():
+    # High-risk browser actions must require a confirmation path before execution.
     with pytest.raises(ValueError):
         assert_safe_action(AgentAction(type="click", target="submit order"))
 

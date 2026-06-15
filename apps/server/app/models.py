@@ -9,6 +9,7 @@ ChatRole = Literal["user", "assistant", "system"]
 FailureType = Literal["recognition_failed", "planning_failed", "execution_failed"]
 
 
+# These Pydantic models are the contract between FastAPI, SSE, storage, and the web UI.
 class ChecklistItem(BaseModel):
     text: str
     status: Literal["pending", "running", "success", "failed"] = "pending"

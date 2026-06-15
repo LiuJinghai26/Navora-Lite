@@ -22,6 +22,7 @@ const failureLabels: Record<FailureType, string> = {
 };
 
 function failureTypeFor(run: Run): FailureType {
+  // Older runs may only have a failed timeline action, so infer the failure bucket.
   if (run.failureType) return run.failureType;
   const failedStep = run.timeline.find((step) => step.status === "failed");
   if (failedStep?.action === "recognition") return "recognition_failed";
@@ -34,6 +35,7 @@ export function AppSidebar() {
   const [tasks, setTasks] = useState<Run[]>([]);
 
   useEffect(() => {
+    // Refresh sidebar stats whenever navigation changes because task history may have changed.
     let mounted = true;
     getTasks()
       .then((items) => {
@@ -48,6 +50,7 @@ export function AppSidebar() {
   }, [pathname]);
 
   const stats = useMemo(() => {
+    // Success rate only counts terminal runs so active tasks do not distort the metric.
     const terminal = tasks.filter((task) => ["completed", "failed", "stopped"].includes(task.status));
     const completed = terminal.filter((task) => task.status === "completed").length;
     const failed = terminal.filter((task) => task.status === "failed");

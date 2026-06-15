@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 function formatDate(value?: string) {
+  // Task cards need compact timestamps rather than full run header dates.
   if (!value) return "Not started";
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -21,6 +22,7 @@ function formatDate(value?: string) {
 }
 
 function lastMessage(run: Run) {
+  // Fall back to the task text for older runs that have no assistant messages.
   return run.messages[run.messages.length - 1]?.content || run.task;
 }
 
@@ -32,6 +34,7 @@ const presetIcons = {
 };
 
 function matchesSearch(run: Run, query: string) {
+  // Search combines identifiers, task text, status, and the latest visible message.
   const normalized = query.trim().toLowerCase();
   if (!normalized) return true;
   return [run.id, run.title, run.task, run.status, lastMessage(run)]
@@ -55,6 +58,7 @@ export default function TasksPage() {
   );
 
   const loadTasks = async () => {
+    // Refresh reads the backend's canonical local run history.
     setLoading(true);
     setError("");
     try {
@@ -92,6 +96,7 @@ export default function TasksPage() {
     setDeletingAll(true);
     setError("");
     try {
+      // Deleting in parallel is acceptable because each request targets a different run id.
       await Promise.all(tasks.map((task) => deleteTask(task.id)));
       setTasks([]);
     } catch {
@@ -102,6 +107,7 @@ export default function TasksPage() {
   };
 
   const startPreset = async (preset: PresetTask) => {
+    // Presets include a preset id so the backend can plan without a model call.
     setStartingPresetId(preset.id);
     setError("");
     try {

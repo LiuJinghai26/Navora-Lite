@@ -14,6 +14,7 @@ const styles: Record<string, string> = {
 };
 
 export function StatusBadge({ status }: { status: RunStatus | StepStatus | "controlling" }) {
+  // "controlling" is a UI-specific state that visually behaves like running.
   const normalized = status === "controlling" ? "running" : status;
   const Icon =
     normalized === "completed" || normalized === "success"

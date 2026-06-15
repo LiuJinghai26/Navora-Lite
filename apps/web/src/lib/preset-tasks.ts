@@ -7,6 +7,7 @@ export interface PresetTask {
   summary: string;
 }
 
+// Frontend preset cards mirror backend PRESET_TASKS ids.
 export const PRESET_TASKS: PresetTask[] = [
   {
     id: "hn-top-story",

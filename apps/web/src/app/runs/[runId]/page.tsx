@@ -21,6 +21,7 @@ export default function RunPage({ params }: { params: { runId: string } }) {
       // The demo route stays usable without the backend by reading the bundled sample run.
       return undefined;
     }
+    // Load a fresh snapshot first, then rely on SSE for live run updates.
     getRun(params.runId)
       .then((loaded) => {
         setRun(loaded);

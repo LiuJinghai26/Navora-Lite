@@ -9,6 +9,7 @@ from app.storage.runs_store import RunsStore
 
 settings = get_settings()
 app = FastAPI(title="Navora Lite API", version="0.1.0")
+# The frontend runs on a separate port during local development.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -18,6 +19,7 @@ app.add_middleware(
 )
 
 settings.artifacts_dir.mkdir(parents=True, exist_ok=True)
+# Screenshots are saved on disk and served directly to the web app.
 app.mount("/artifacts", StaticFiles(directory=str(settings.artifacts_dir)), name="artifacts")
 app.state.runs_store = RunsStore(settings.run_storage_path)
 

@@ -1,8 +1,10 @@
 import type { CreateRunResponse, Run } from "./types";
 
+// Frontend requests target the FastAPI server, defaulting to the local dev port.
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Centralize JSON headers and backend error-message extraction for all API calls.
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
@@ -45,6 +47,7 @@ export async function createRun(
   url = "",
   presetId?: string
 ): Promise<CreateRunResponse> {
+  // preset_id lets the backend choose a built-in plan instead of calling a model.
   return request<CreateRunResponse>("/api/runs", {
     method: "POST",
     body: JSON.stringify({ task, url, preset_id: presetId })

@@ -19,10 +19,12 @@ SETTINGS_KEYS = [
 
 
 def _env_path() -> Path:
+    # Settings are stored relative to the backend working directory.
     return Path(".env")
 
 
 def _serialize(payload: SettingsPayload) -> dict[str, str]:
+    # Masked API keys mean "keep the existing value" rather than "write asterisks".
     values = {
         "MODEL_PROVIDER": payload.MODEL_PROVIDER,
         "MODEL_NAME": payload.MODEL_NAME,
@@ -37,6 +39,7 @@ def _serialize(payload: SettingsPayload) -> dict[str, str]:
 
 
 def _write_env(updates: dict[str, str]) -> None:
+    # Preserve unrelated .env lines while replacing known settings in place.
     path = _env_path()
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
     seen: set[str] = set()
@@ -59,6 +62,7 @@ def _write_env(updates: dict[str, str]) -> None:
 
 @router.get("", response_model=SettingsPayload)
 async def get_model_settings() -> SettingsPayload:
+    # Never send the raw API key back to the browser.
     settings = get_settings()
     return SettingsPayload(
         MODEL_PROVIDER=settings.model_provider,
@@ -73,6 +77,7 @@ async def get_model_settings() -> SettingsPayload:
 
 @router.post("", response_model=SettingsPayload)
 async def save_model_settings(payload: SettingsPayload) -> SettingsPayload:
+    # Clear the cached Settings object so the next read reflects the saved .env file.
     _write_env(_serialize(payload))
     get_settings.cache_clear()
     return await get_model_settings()

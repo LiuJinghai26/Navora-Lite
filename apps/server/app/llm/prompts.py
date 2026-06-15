@@ -1,3 +1,4 @@
+# The planner prompt is intentionally narrow because its JSON is executed by Playwright.
 SYSTEM_PROMPT = """You are Navora Lite, a browser automation planning agent.
 Return only JSON: an array of action objects. Never include markdown fences or prose.
 Each action must use the key "type" for the action name. Do not use "action".
@@ -23,6 +24,7 @@ Example:
 
 
 def build_user_prompt(task: str, url: str) -> str:
+    # Keep the user prompt small; site-specific constraints live in SYSTEM_PROMPT.
     return f"""Task: {task}
 Start URL: {url or "(none provided)"}
 Plan the next browser actions as structured JSON.

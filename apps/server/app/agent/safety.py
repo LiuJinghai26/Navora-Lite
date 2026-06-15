@@ -1,6 +1,7 @@
 from app.agent.actions import AgentAction
 
 
+# Conservative keyword guard for browser actions before they reach Playwright.
 RISKY_TERMS = [
     "pay",
     "payment",
@@ -34,6 +35,7 @@ DISALLOWED_MOCK_TERMS = [
 
 
 def is_high_risk_action(action: AgentAction) -> bool:
+    # Flatten planner-controlled fields so selectors, URLs, and messages are checked uniformly.
     text = " ".join(
         str(value).lower()
         for value in [action.type, action.target, action.selector, action.value, action.url, action.reason, action.message]
@@ -43,6 +45,7 @@ def is_high_risk_action(action: AgentAction) -> bool:
 
 
 def assert_safe_action(action: AgentAction) -> None:
+    # Keep the old local shopping demo disabled even if a model tries to revive it.
     text = " ".join(
         str(value).lower()
         for value in [action.type, action.target, action.selector, action.value, action.url, action.reason, action.message]

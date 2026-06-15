@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme tokens keep Tailwind utility classes consistent across display modes. */
 :root {
   color-scheme: dark;
   --color-surface: #07111f;
@@ -26,6 +27,7 @@
 }
 
 [data-theme="light"] {
+  /* Light mode swaps the accent family while preserving semantic token names. */
   color-scheme: light;
   --color-surface: #f7f7f8;
   --color-panel: #ffffff;
@@ -45,6 +47,7 @@
 }
 
 [data-theme="warm"] {
+  /* Warm mode is a softer high-contrast variant for light surfaces. */
   color-scheme: light;
   --color-surface: #fff4ec;
   --color-panel: #fffaf6;
@@ -82,6 +85,7 @@ select {
 }
 
 .scrollbar-thin {
+  /* Firefox scrollbar styling pairs with the WebKit rules below. */
   scrollbar-width: thin;
   scrollbar-color: var(--color-stroke) transparent;
 }
@@ -97,6 +101,7 @@ select {
 }
 
 .theme-input {
+  /* Components use this when CSS variables should override static Tailwind colors. */
   background: var(--color-input);
   color: var(--color-text);
 }
@@ -113,6 +118,7 @@ select {
 [data-theme="warm"] .text-slate-100,
 [data-theme="light"] .text-slate-200,
 [data-theme="warm"] .text-slate-200 {
+  /* Theme overrides keep existing Tailwind markup readable without duplicating components. */
   color: var(--color-text) !important;
 }
 

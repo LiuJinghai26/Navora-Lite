@@ -50,6 +50,7 @@ const presets = [
 ];
 
 function toForm(settings?: SettingsRecord | null): FormState {
+  // Convert backend settings into strings because form controls all read string values.
   if (!settings) return defaults;
   return {
     MODEL_PROVIDER: String(settings.MODEL_PROVIDER ?? defaults.MODEL_PROVIDER),
@@ -63,6 +64,7 @@ function toForm(settings?: SettingsRecord | null): FormState {
 }
 
 function toPayload(form: FormState) {
+  // Convert user-edited strings back into the SettingsPayload shape expected by FastAPI.
   return {
     MODEL_PROVIDER: form.MODEL_PROVIDER,
     MODEL_NAME: form.MODEL_NAME,
@@ -90,6 +92,7 @@ export function ModelSettingsDialog({
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // Rehydrate the form each time the modal opens so stale edits are not reused.
     if (!open) return;
     setError("");
     if (settings) {
@@ -111,6 +114,7 @@ export function ModelSettingsDialog({
   };
 
   const save = async () => {
+    // The backend writes .env and returns the refreshed, masked settings object.
     setSaving(true);
     setError("");
     try {

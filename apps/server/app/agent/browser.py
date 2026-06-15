@@ -6,6 +6,7 @@ from app.config import Settings
 
 
 def _unique_selectors(selectors: list[str | None]) -> list[str]:
+    # Keep selector retries deterministic while removing empty and duplicate entries.
     seen: set[str] = set()
     unique: list[str] = []
     for selector in selectors:
@@ -16,6 +17,7 @@ def _unique_selectors(selectors: list[str | None]) -> list[str]:
 
 
 class BrowserSession:
+    # Small protocol used by the runner; concrete sessions can swap browser implementations.
     async def execute(self, action: AgentAction) -> Any:
         raise NotImplementedError
 
@@ -34,6 +36,7 @@ class PlaywrightBrowserSession(BrowserSession):
         self.context: dict[str, Any] = {}
 
     async def execute(self, action: AgentAction) -> Any:
+        # Dispatch stays centralized so screenshots, timing, and safety checks remain runner-owned.
         if action.type == "goto" and action.url:
             await self._goto(action.url)
         elif action.type == "fill":
@@ -87,6 +90,7 @@ class PlaywrightBrowserSession(BrowserSession):
             return
         target = (action.target or "").lower()
         candidates = [action.selector]
+        # Search fields vary widely across public sites, so try semantic fallbacks before failing.
         if "search" in target:
             candidates.extend(
                 [
@@ -136,6 +140,7 @@ class PlaywrightBrowserSession(BrowserSession):
             selector_error = exc
             if not target:
                 raise
+        # Role locators handle links/buttons whose accessible name matches the planner target.
         for locator in [self.page.get_by_role("link", name=target), self.page.get_by_role("button", name=target)]:
             try:
                 await locator.first.click(timeout=2000)
@@ -154,6 +159,7 @@ class PlaywrightBrowserSession(BrowserSession):
         await self.page.keyboard.press(aliases.get(key.lower(), key))
 
     async def _wait_for_page_settle(self) -> None:
+        # Public pages can keep network requests open, so each load-state wait is best effort.
         try:
             await self.page.wait_for_load_state("domcontentloaded", timeout=5000)
         except Exception:
@@ -200,6 +206,7 @@ class PlaywrightBrowserSession(BrowserSession):
                 message = str(exc)
                 if "Execution context was destroyed" not in message and "Cannot find context" not in message:
                     raise
+                # Navigation during extraction can destroy the JS context; wait and retry.
                 try:
                     await self.page.wait_for_load_state("load", timeout=8000)
                 except Exception:
@@ -210,6 +217,7 @@ class PlaywrightBrowserSession(BrowserSession):
         return None
 
     async def _extract_hacker_news_top_story(self) -> Any:
+        # Site-specific extractors keep common demos more reliable than a generic page summary.
         return await self._evaluate(
             """() => {
                 const row = document.querySelector('.athing');
@@ -438,6 +446,7 @@ class PlaywrightBrowserSession(BrowserSession):
         )
 
     async def screenshot(self, path: Path, label: str) -> None:
+        # The label is stored by the runner; Playwright only needs the artifact path.
         path.parent.mkdir(parents=True, exist_ok=True)
         await self.page.screenshot(path=str(path), full_page=False)
 
@@ -449,6 +458,7 @@ class PlaywrightBrowserSession(BrowserSession):
 async def create_browser_session(settings: Settings) -> BrowserSession:
     playwright = None
     try:
+        # Import lazily so the server can still start before Playwright is installed.
         from playwright.async_api import async_playwright
 
         playwright = await async_playwright().start()

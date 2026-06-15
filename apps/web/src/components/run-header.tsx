@@ -8,6 +8,7 @@ import type { Run } from "@/lib/types";
 import { StatusBadge } from "./status-badge";
 
 function formatDate(value?: string) {
+  // Header timestamps use a fuller format than task-list cards.
   if (!value) return "Not started";
   return new Intl.DateTimeFormat("en-US", {
     weekday: "short",
@@ -21,6 +22,7 @@ function formatDate(value?: string) {
 }
 
 function formatDuration(ms?: number) {
+  // Runs shorter than a minute stay in seconds for scanability.
   if (!ms) return "0s";
   const seconds = Math.round(ms / 1000);
   const minutes = Math.floor(seconds / 60);
@@ -33,6 +35,7 @@ export function RunHeader({ run }: { run: Run }) {
   const router = useRouter();
 
   const exportRun = () => {
+    // Browser-side export avoids needing a separate backend export endpoint.
     const blob = new Blob([JSON.stringify(run, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -43,6 +46,7 @@ export function RunHeader({ run }: { run: Run }) {
   };
 
   const handleRerun = async () => {
+    // Rerun creates a new backend run and navigates to its live detail page.
     const response = await rerun(run.id);
     router.push(`/runs/${response.run_id}`);
   };

@@ -2,10 +2,12 @@ import { Check, Circle, Loader2, X } from "lucide-react";
 import type { ChatMessage as ChatMessageType } from "@/lib/types";
 
 function formatTime(value: string) {
+  // Chat messages use short local timestamps to keep the transcript compact.
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(new Date(value));
 }
 
 function ChecklistIcon({ status }: { status: string }) {
+  // Checklist status mirrors backend timeline status but uses smaller inline icons.
   if (status === "success") return <Check className="h-3.5 w-3.5 text-emerald-300" />;
   if (status === "failed") return <X className="h-3.5 w-3.5 text-red-300" />;
   if (status === "running") return <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-300" />;

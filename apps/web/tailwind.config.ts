@@ -1,9 +1,11 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  // Scan only app source so generated files and dependencies do not affect CSS output.
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // CSS variables let runtime themes reuse the same Tailwind class names.
       colors: {
         surface: "var(--color-surface)",
         panel: "var(--color-panel)",

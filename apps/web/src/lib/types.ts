@@ -1,3 +1,4 @@
+// These frontend types mirror apps/server/app/models.py.
 export type RunStatus = "idle" | "running" | "completed" | "failed" | "stopped";
 export type ControlStatus = "idle" | "controlling" | "stopped" | "completed" | "failed";
 export type StepStatus = "pending" | "running" | "success" | "failed" | "skipped" | "stopped";
@@ -58,6 +59,7 @@ export interface Run {
 }
 
 export interface RunEvent {
+  // Snapshot events include a full run; incremental events may include only changed fields.
   type: "snapshot" | "chat_message" | "timeline_step" | "screenshot" | "status" | "extracted" | "error";
   message?: ChatMessage;
   step?: TimelineStep;

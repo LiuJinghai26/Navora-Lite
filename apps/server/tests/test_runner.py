@@ -10,6 +10,7 @@ from app.storage.runs_store import RunsStore
 
 
 def test_runner_marks_planner_fallback_as_failure(monkeypatch, tmp_path):
+    # Planner fallback reasons are surfaced as planning failures in the run timeline.
     async def fake_plan_actions(*args, **kwargs):
         return PlannerResult(
             [AgentAction(type="goto", url="http://localhost:8000/mock/findparts")],

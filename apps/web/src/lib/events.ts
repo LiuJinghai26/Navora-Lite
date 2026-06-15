@@ -6,6 +6,7 @@ export function subscribeToRun(runId: string, onEvent: (event: RunEvent) => void
   const source = new EventSource(`${API_BASE}/api/runs/${runId}/events`);
   source.onmessage = (message) => {
     try {
+      // The backend sends JSON in the data field for every event.
       onEvent(JSON.parse(message.data) as RunEvent);
     } catch {
       onError?.();

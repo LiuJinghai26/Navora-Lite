@@ -12,6 +12,7 @@ export function FullscreenPreviewDialog({
   onClose: () => void;
 }) {
   if (!open) return null;
+  // Clicks on the backdrop close the dialog; clicks inside the preview are contained.
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-5" onClick={onClose}>
       <div className="relative w-full max-w-6xl rounded-lg border border-stroke bg-panel p-3" onClick={(event) => event.stopPropagation()}>
@@ -27,4 +28,3 @@ export function FullscreenPreviewDialog({
     </div>
   );
 }
-

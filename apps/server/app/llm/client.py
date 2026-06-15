@@ -12,10 +12,12 @@ from app.llm.schemas import PlannerConfigurationError, PlannerError, PlannerResu
 
 
 def _is_local_provider(settings: Settings) -> bool:
+    # Local OpenAI-compatible servers commonly accept empty API keys.
     return settings.model_provider.lower() in {"ollama", "lmstudio", "vllm", "custom"}
 
 
 def recognized_task_plan(task: str, start_url: str) -> list[AgentAction] | None:
+    # Recognized plans avoid model calls for common public-site tasks.
     task_key = task.lower()
     url_key = start_url.lower()
     if "ada lovelace" in task_key:
@@ -159,6 +161,7 @@ def recognized_task_plan(task: str, start_url: str) -> list[AgentAction] | None:
 
 
 def _article_plan(url: str) -> list[AgentAction]:
+    # Article plans navigate directly, then use a stable extractor target.
     return [
         AgentAction(type="goto", url=url),
         AgentAction(type="wait", ms=1000, condition="Wait for the Wikipedia article"),
@@ -167,6 +170,7 @@ def _article_plan(url: str) -> list[AgentAction]:
 
 
 def _goto_extract_plan(url: str, target: str = "page summary") -> list[AgentAction]:
+    # Generic public-site fallback: open, settle, extract visible page structure.
     return [
         AgentAction(type="goto", url=url),
         AgentAction(type="wait", ms=1000, condition="Wait for the page"),
@@ -175,12 +179,14 @@ def _goto_extract_plan(url: str, target: str = "page summary") -> list[AgentActi
 
 
 def has_planner_config(settings: Settings) -> bool:
+    # Hosted providers need a key; configured local providers only need a base URL.
     if not settings.api_base:
         return False
     return bool(settings.api_key or _is_local_provider(settings))
 
 
 def _json_content(content: str) -> str:
+    # Models sometimes wrap JSON in fences or prose; extract the likely JSON region.
     value = content.strip()
     if value.startswith("```"):
         lines = value.splitlines()
@@ -197,6 +203,7 @@ def _json_content(content: str) -> str:
 
 
 def _parse_actions(content: str) -> list[AgentAction]:
+    # Accept a few common planner response shapes while keeping the action contract strict.
     raw: Any = json.loads(_json_content(content))
     if isinstance(raw, dict) and "actions" in raw:
         raw = raw["actions"]
@@ -218,6 +225,7 @@ def _parse_actions(content: str) -> list[AgentAction]:
 
 
 async def plan_actions(task: str, url: str, settings: Settings, preset_id: str | None = None) -> PlannerResult:
+    # Planning order is deterministic: preset, recognized task, then model.
     preset_actions = preset_plan(preset_id)
     if preset_actions:
         return PlannerResult(preset_actions)
@@ -236,6 +244,7 @@ async def plan_actions(task: str, url: str, settings: Settings, preset_id: str |
     if settings.api_key:
         headers["Authorization"] = f"Bearer {settings.api_key}"
 
+    # The prompt asks for JSON-only actions; parsing still tolerates minor model drift.
     payload = {
         "model": settings.model_name,
         "messages": [

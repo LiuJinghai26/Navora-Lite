@@ -8,6 +8,7 @@ import urllib.request
 
 
 def request_json(method: str, url: str, payload: dict | None = None) -> dict:
+    # Use urllib so the CLI has no dependency beyond the standard library.
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     request = urllib.request.Request(url, data=data, method=method)
     request.add_header("Content-Type", "application/json")
@@ -16,6 +17,7 @@ def request_json(method: str, url: str, payload: dict | None = None) -> dict:
 
 
 def main() -> int:
+    # The CLI mirrors the web flow: create a run, then poll until it reaches a terminal state.
     parser = argparse.ArgumentParser(description="Run the Navora Lite demo task.")
     parser.add_argument("--task", default="Open Hacker News and extract the current top story with its source, score, age, and comments.")
     parser.add_argument("--url", default="https://news.ycombinator.com/")

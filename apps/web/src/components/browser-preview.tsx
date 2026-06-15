@@ -30,6 +30,7 @@ export function BrowserPreview({
   const resolvedImageUrl = useMemo(() => absoluteImageUrl(imageUrl || latest?.imageUrl), [imageUrl, latest?.imageUrl]);
 
   const stop = async () => {
+    // The bundled demo run is read-only; real runs are controlled through the API.
     if (run.id !== "demo") {
       await stopRun(run.id);
     }

@@ -5,6 +5,7 @@ import urllib.request
 
 
 def main() -> int:
+    # Stop requests are idempotent from the caller's perspective; the server owns final state.
     parser = argparse.ArgumentParser(description="Stop a Navora Lite run.")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--api-base", default="http://localhost:8000")
@@ -19,4 +20,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

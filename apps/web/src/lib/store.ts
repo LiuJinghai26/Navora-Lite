@@ -24,6 +24,7 @@ function replaceStep(steps: TimelineStep[], step: TimelineStep) {
 }
 
 export const useRunStore = create<RunState>((set) => ({
+  // sampleRun gives the UI an immediate, valid shape before a real run loads.
   run: sampleRun,
   activeTab: "Overview",
   apiOnline: true,
@@ -42,6 +43,7 @@ export const useRunStore = create<RunState>((set) => ({
         run.timeline = replaceStep(run.timeline, event.step);
       }
       if (event.type === "status" && event.status) {
+        // Keep browser control status aligned with backend terminal states.
         run.status = event.status;
         run.controlStatus =
           event.status === "running"

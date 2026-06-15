@@ -1,5 +1,6 @@
 import type { Run } from "./types";
 
+// Bundled demo data keeps /runs/demo useful when the backend is offline.
 const start = new Date("2026-06-12T06:10:50.000Z");
 const now = start.toISOString();
 
