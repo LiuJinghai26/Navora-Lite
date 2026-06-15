@@ -5,6 +5,7 @@ import socket
 import subprocess
 import time
 from typing import Any
+from urllib.parse import quote
 import urllib.request
 from uuid import uuid4
 
@@ -81,6 +82,7 @@ class PlaywrightBrowserSession(BrowserSession):
                     result["topics"] = self.context.get("mdn_topics", [])
                 return result
             if target == "wikipedia article summary":
+                await self._resolve_wikipedia_article_for_extract()
                 return await self._extract_wikipedia_article_summary()
             if target == "httpbin form echo":
                 return await self._extract_httpbin_form_echo()
@@ -91,6 +93,7 @@ class PlaywrightBrowserSession(BrowserSession):
             if "github.com/trending" in self.page.url:
                 return await self._extract_github_trending()
             if "wikipedia.org" in self.page.url:
+                await self._resolve_wikipedia_article_for_extract()
                 return await self._extract_wikipedia_article_summary()
             if "httpbin.org/post" in self.page.url:
                 return await self._extract_httpbin_form_echo()
@@ -153,6 +156,12 @@ class PlaywrightBrowserSession(BrowserSession):
             selector_error = exc
             if not target:
                 raise
+        try:
+            await self._click_named_link(target)
+            await self._wait_for_page_settle()
+            return
+        except Exception:
+            pass
         # Role locators handle links/buttons whose accessible name matches the planner target.
         for locator in [self.page.get_by_role("link", name=target), self.page.get_by_role("button", name=target)]:
             try:
@@ -161,9 +170,130 @@ class PlaywrightBrowserSession(BrowserSession):
                 return
             except Exception:
                 continue
+        try:
+            await self._goto_named_wiki_article(target)
+            return
+        except Exception:
+            pass
         if selector_error:
             raise selector_error
         raise ValueError(f"Could not click {target}")
+
+    async def _click_named_link(self, target: str) -> None:
+        script = """(target) => {
+            const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+            const targetText = clean(target).toLowerCase();
+            const badHref = /\\/wiki\\/(?:File|Special|Help|Category|Template|Talk|User|Wikipedia|MediaWiki|Portal):/i;
+            const links = Array.from(document.querySelectorAll('main a[href], article a[href], #mw-content-text a[href], a[href]'));
+            const visible = (link) => {
+                const rect = link.getBoundingClientRect();
+                const style = window.getComputedStyle(link);
+                return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+            };
+            const score = (link) => {
+                const text = clean(link.textContent).toLowerCase();
+                const label = clean(link.getAttribute('aria-label')).toLowerCase();
+                const title = clean(link.getAttribute('title')).toLowerCase();
+                const href = link.href || '';
+                if (!visible(link) || !href || badHref.test(href)) return -1;
+                let value = 0;
+                if (text === targetText) value += 100;
+                else if (label === targetText || title === targetText) value += 80;
+                else if (text.includes(targetText)) value += 50;
+                else return -1;
+                if (link.closest('p')) value += 20;
+                if (link.closest('table.infobox')) value += 10;
+                if (link.querySelector('img') || link.closest('figure')) value -= 40;
+                return value;
+            };
+            return links
+                .map((link) => ({ link, score: score(link) }))
+                .filter((item) => item.score >= 0)
+                .sort((a, b) => b.score - a.score)[0]?.link || null;
+        }"""
+        handle = await self.page.evaluate_handle(script, target)
+        element = handle.as_element()
+        if element is None:
+            raise ValueError(f"Could not find named link {target}")
+        await element.click(timeout=2000)
+
+    async def _goto_named_wiki_article(self, target: str) -> None:
+        parsed = self.page.url.split("/")
+        if len(parsed) < 3 or "wiki" not in self.page.url:
+            raise ValueError(f"Current page is not a wiki article: {self.page.url}")
+        origin = "/".join(parsed[:3])
+        slug = quote(target.strip().replace(" ", "_"), safe="_()")
+        if not slug:
+            raise ValueError("Empty wiki article target.")
+        await self._goto(f"{origin}/wiki/{slug}")
+        await self._wait_for_page_settle()
+
+    async def _resolve_wikipedia_article_for_extract(self) -> None:
+        click_targets = [target for target in self.context.get("planned_click_targets", []) if target]
+        if not click_targets:
+            return
+        result = await self._evaluate(
+            """async (clickTargets) => {
+                const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+                const lowerTargets = clickTargets.map((target) => clean(target).toLowerCase()).filter(Boolean);
+                const bodyText = clean(document.body?.innerText || '');
+                const hasInfobox = !!document.querySelector('table.infobox');
+                const isSearchPage = location.href.includes('/wiki/Special:Search') || document.body.classList.contains('mw-special-Search');
+                const isDisambiguation = !!document.querySelector('#disambigbox, a[href*="Help:Disambiguation"]')
+                    || /\\bmay (also )?refer to\\b/i.test(bodyText.slice(0, 2000));
+                if (hasInfobox || (!isSearchPage && !isDisambiguation)) return null;
+
+                const title = clean(document.querySelector('#firstHeading')?.textContent).toLowerCase();
+                const badPath = /^\\/wiki\\/(?:File|Special|Help|Category|Template|Talk|User|Wikipedia|MediaWiki|Portal):/i;
+                const candidateNodes = Array.from(document.querySelectorAll(
+                    '.mw-search-result-heading a[href], #mw-content-text li a[href], #mw-content-text p a[href]'
+                ));
+                const seen = new Set();
+                const candidates = [];
+                for (const link of candidateNodes) {
+                    const text = clean(link.textContent).toLowerCase();
+                    if (!text) continue;
+                    const url = new URL(link.getAttribute('href'), location.href);
+                    if (!url.pathname.startsWith('/wiki/') || badPath.test(url.pathname) || url.hash) continue;
+                    const href = url.href;
+                    if (href === location.href || seen.has(href)) continue;
+                    seen.add(href);
+                    candidates.push({
+                        href,
+                        text,
+                        context: clean(link.closest('li, .mw-search-result, p')?.textContent).toLowerCase()
+                    });
+                    if (candidates.length >= 16) break;
+                }
+
+                const scored = await Promise.all(candidates.map(async (candidate, index) => {
+                    let score = 0;
+                    if (title && candidate.text.startsWith(`${title} (`)) score += 20;
+                    else if (title && candidate.text.startsWith(`${title} `)) score += 12;
+                    else if (title && candidate.text === title) score += 8;
+                    if (candidate.text.includes('(')) score += 4;
+                    if (lowerTargets.includes(candidate.text)) score -= 60;
+                    try {
+                        const response = await fetch(candidate.href, { credentials: 'same-origin' });
+                        const html = (await response.text()).toLowerCase();
+                        const targetHits = lowerTargets.filter((target) => html.includes(target)).length;
+                        if (targetHits) score += 100 * targetHits;
+                        if (/class=["'][^"']*infobox/i.test(html)) score += 20;
+                        if (html.includes('id="disambigbox"') || html.includes('help:disambiguation')) score -= 50;
+                    } catch {
+                        score -= 20;
+                    }
+                    return { ...candidate, score, index };
+                }));
+
+                const best = scored.sort((a, b) => b.score - a.score || a.index - b.index)[0];
+                return best && best.score >= 80 ? { url: best.href, score: best.score } : null;
+            }""",
+            click_targets,
+        )
+        if isinstance(result, dict) and result.get("url"):
+            await self._goto(result["url"])
+            await self._wait_for_page_settle()
 
     async def _press(self, action: AgentAction) -> None:
         key = action.key or action.target
@@ -216,11 +346,13 @@ class PlaywrightBrowserSession(BrowserSession):
         if last_error:
             raise last_error
 
-    async def _evaluate(self, script: str) -> Any:
+    async def _evaluate(self, script: str, arg: Any | None = None) -> Any:
         last_error: Exception | None = None
         for _ in range(3):
             try:
-                return await self.page.evaluate(script)
+                if arg is None:
+                    return await self.page.evaluate(script)
+                return await self.page.evaluate(script, arg)
             except Exception as exc:
                 last_error = exc
                 message = str(exc)

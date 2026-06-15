@@ -2,7 +2,7 @@ import pytest
 
 from app.agent.presets import preset_plan
 from app.agent.runner import _extraction_failure_message
-from app.llm.client import _ensure_follow_link_steps, _parse_actions, recognized_task_plan
+from app.llm.client import _ensure_follow_link_steps, _parse_actions, _postprocess_model_actions, recognized_task_plan
 from app.llm.schemas import TaskRecognitionError
 
 
@@ -62,6 +62,36 @@ def test_follow_link_repair_keeps_explicit_navigation_plan():
     repaired = _ensure_follow_link_steps("提取当前页面摘要，然后打开 Linked Person 链接并提取他的出生日期。", actions)
 
     assert repaired == actions
+
+
+def test_postprocess_prefers_english_wikipedia_for_ascii_search():
+    actions = _parse_actions(
+        """[
+            {"type":"goto","url":"https://www.wikipedia.org/"},
+            {"type":"fill","target":"search input","value":"python"},
+            {"type":"press","key":"Enter"},
+            {"type":"extract","target":"Python facts"}
+        ]"""
+    )
+
+    processed = _postprocess_model_actions("Search Wikipedia for python.", actions)
+
+    assert processed[0].url == "https://en.wikipedia.org/"
+
+
+def test_postprocess_keeps_wikipedia_portal_for_non_ascii_search():
+    actions = _parse_actions(
+        """[
+            {"type":"goto","url":"https://www.wikipedia.org/"},
+            {"type":"fill","target":"search input","value":"鲁迅"},
+            {"type":"press","key":"Enter"},
+            {"type":"extract","target":"Article facts"}
+        ]"""
+    )
+
+    processed = _postprocess_model_actions("在维基百科搜索鲁迅。", actions)
+
+    assert processed[0].url == "https://www.wikipedia.org/"
 
 
 def test_recognized_task_plan_does_not_use_mock_for_default_url():

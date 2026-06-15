@@ -1,6 +1,7 @@
 import json
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -264,6 +265,34 @@ def _ensure_follow_link_steps(task: str, actions: list[AgentAction]) -> list[Age
     ]
 
 
+def _prefer_english_wikipedia_for_ascii_search(actions: list[AgentAction]) -> list[AgentAction]:
+    if len(actions) < 3:
+        return actions
+
+    first = actions[0]
+    if first.type != "goto" or not first.url:
+        return actions
+    host = urlparse(first.url).netloc.lower()
+    if host not in {"www.wikipedia.org", "wikipedia.org"}:
+        return actions
+
+    has_ascii_search = any(
+        action.type == "fill"
+        and action.value
+        and "search" in ((action.target or "") + " " + (action.selector or "")).lower()
+        and action.value.isascii()
+        for action in actions[1:4]
+    )
+    if not has_ascii_search:
+        return actions
+
+    return [first.model_copy(update={"url": "https://en.wikipedia.org/"}), *actions[1:]]
+
+
+def _postprocess_model_actions(task: str, actions: list[AgentAction]) -> list[AgentAction]:
+    return _ensure_follow_link_steps(task, _prefer_english_wikipedia_for_ascii_search(actions))
+
+
 async def plan_actions(task: str, url: str, settings: Settings, preset_id: str | None = None) -> PlannerResult:
     # Planning order is deterministic: preset, recognized task, then model.
     preset_actions = preset_plan(preset_id)
@@ -301,7 +330,7 @@ async def plan_actions(task: str, url: str, settings: Settings, preset_id: str |
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
-            return PlannerResult(_ensure_follow_link_steps(task, _parse_actions(content)))
+            return PlannerResult(_postprocess_model_actions(task, _parse_actions(content)))
     except TaskRecognitionError:
         raise
     except Exception as exc:
