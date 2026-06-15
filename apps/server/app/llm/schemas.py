@@ -6,3 +6,14 @@ class PlannerResult:
         self.actions = actions
         self.fallback_reason = fallback_reason
 
+
+class PlannerConfigurationError(Exception):
+    pass
+
+
+class PlannerError(Exception):
+    pass
+
+
+class TaskRecognitionError(PlannerError):
+    pass

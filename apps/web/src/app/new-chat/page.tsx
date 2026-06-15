@@ -1,7 +1,7 @@
 "use client";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { createRun } from "@/lib/api";
+import { createRun, getSettings } from "@/lib/api";
 import { AlertCircle, ArrowUp, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -11,6 +11,14 @@ const examples = [
   "Open Hacker News and extract the current top story with its source, score, age, and comments.",
   "Open the Wikipedia Python article and extract the lead summary, infobox language details, and page metadata."
 ];
+
+function hasPlannerConfig(settings: Record<string, unknown>) {
+  const provider = String(settings.MODEL_PROVIDER || "").toLowerCase();
+  const hasApiBase = Boolean(String(settings.API_BASE || "").trim());
+  const hasApiKey = Boolean(String(settings.API_KEY || "").trim());
+  const localProvider = ["ollama", "lmstudio", "vllm", "custom"].includes(provider);
+  return hasApiBase && (hasApiKey || localProvider);
+}
 
 export default function NewChatPage() {
   const router = useRouter();
@@ -24,10 +32,19 @@ export default function NewChatPage() {
     setBusy(true);
     setError("");
     try {
+      const settings = await getSettings();
+      if (!hasPlannerConfig(settings)) {
+        const message = "请先在 Settings 中配置模型 API，再启动浏览器任务。";
+        window.alert(message);
+        setError(message);
+        setBusy(false);
+        return;
+      }
       const response = await createRun(trimmed);
       router.push(`/runs/${response.run_id}`);
-    } catch {
-      setError("Could not start the task. Check that the API server is running.");
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Could not start the task. Check that the API server is running.";
+      setError(message);
       setBusy(false);
     }
   };

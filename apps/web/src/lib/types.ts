@@ -1,6 +1,7 @@
 export type RunStatus = "idle" | "running" | "completed" | "failed" | "stopped";
 export type ControlStatus = "idle" | "controlling" | "stopped" | "completed" | "failed";
 export type StepStatus = "pending" | "running" | "success" | "failed" | "skipped" | "stopped";
+export type FailureType = "recognition_failed" | "planning_failed" | "execution_failed";
 
 export interface ChecklistItem {
   text: string;
@@ -52,6 +53,7 @@ export interface Run {
   extracted?: unknown;
   inputs: Record<string, unknown>;
   fallbackReason?: string;
+  failureType?: FailureType;
   stopRequested?: boolean;
 }
 
@@ -70,4 +72,3 @@ export interface CreateRunResponse {
   run_id: string;
   status: RunStatus;
 }
-

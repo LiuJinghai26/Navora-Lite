@@ -1,5 +1,8 @@
+from types import SimpleNamespace
+
 from fastapi.testclient import TestClient
 
+from app.api import runs
 from app.main import app
 
 
@@ -45,6 +48,49 @@ def test_runs_api_preserves_preset_metadata():
     run = get_response.json()
     assert run["title"] == "Hacker News Top Story"
     assert run["inputs"]["preset_id"] == "hn-top-story"
+
+
+def test_runs_api_requires_model_config_for_auto_started_free_task(monkeypatch):
+    monkeypatch.setattr(
+        runs,
+        "get_settings",
+        lambda: SimpleNamespace(
+            api_base="",
+            api_key="",
+            model_provider="openai-compatible",
+            model_name="qwen3-32b",
+            browser_channel="chromium",
+        ),
+    )
+
+    response = client.post(
+        "/api/runs",
+        json={
+            "task": "Open https://example.com and extract the page title.",
+            "url": "http://localhost:8000/mock/findparts",
+            "auto_start": True,
+        },
+    )
+
+    assert response.status_code == 400
+    assert "配置模型 API" in response.json()["detail"]
+
+
+def test_runs_api_infers_start_url_from_task_text():
+    response = client.post(
+        "/api/runs",
+        json={
+            "task": "Open https://example.com and extract the page title.",
+            "url": "http://localhost:8000/mock/findparts",
+            "auto_start": False,
+        },
+    )
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+
+    get_response = client.get(f"/api/runs/{run_id}")
+    assert get_response.status_code == 200
+    assert get_response.json()["url"] == "https://example.com"
 
 
 def test_mock_page_contains_demo_controls():

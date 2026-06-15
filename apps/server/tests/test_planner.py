@@ -1,6 +1,10 @@
+import pytest
+
 from app.agent.browser import preset_fallback_html
 from app.agent.presets import preset_plan
-from app.llm.client import _parse_actions, fallback_plan, mock_plan
+from app.agent.runner import _extraction_failure_message
+from app.llm.client import _parse_actions, mock_plan, recognized_task_plan
+from app.llm.schemas import TaskRecognitionError
 
 
 def test_mock_planner_outputs_demo_sequence():
@@ -25,6 +29,70 @@ def test_parse_actions_accepts_model_action_alias():
 
     assert actions[0].type == "goto"
     assert actions[0].url == "http://localhost:8000/mock/findparts"
+
+
+def test_parse_actions_accepts_fenced_json():
+    actions = _parse_actions('```json\n[{"type":"goto","url":"https://example.com"}]\n```')
+
+    assert actions[0].type == "goto"
+    assert actions[0].url == "https://example.com"
+
+
+def test_parse_actions_rejects_non_executable_plan():
+    with pytest.raises(TaskRecognitionError):
+        _parse_actions('[{"type":"ask_user","message":"Which site should I open?"}]')
+
+
+def test_recognized_task_plan_does_not_use_mock_for_default_url():
+    actions = recognized_task_plan("Find coffee shops in Seattle.", "http://localhost:8000/mock/findparts")
+
+    assert actions is None
+
+
+def test_recognized_task_plan_uses_mock_only_for_aurora_demo():
+    actions = recognized_task_plan("Find the AURORA TASK LAMP.", "http://localhost:8000/mock/findparts")
+
+    assert actions is not None
+    assert actions[1].value == "AURORA TASK LAMP"
+
+
+def test_extraction_failure_detects_blocked_page():
+    result = {
+        "page_title": "Just a moment...",
+        "url": "https://example.com/",
+        "heading": "Just a moment...",
+        "paragraphs": ["This website verifies you are not a bot."],
+        "headings": ["Performing security verification"],
+        "links": [],
+    }
+
+    assert _extraction_failure_message(result) is not None
+
+
+def test_extraction_failure_detects_empty_page_summary():
+    result = {
+        "page_title": "tripadvisor.com",
+        "url": "https://www.tripadvisor.com/Search?q=San%20Diego%20attractions",
+        "heading": "",
+        "paragraphs": [],
+        "headings": [],
+        "links": [],
+    }
+
+    assert _extraction_failure_message(result) is not None
+
+
+def test_extraction_failure_allows_useful_summary():
+    result = {
+        "page_title": "Example",
+        "url": "https://example.com/",
+        "heading": "Example Domain",
+        "paragraphs": ["Example Domain is reserved for illustrative examples."],
+        "headings": ["Example Domain"],
+        "links": [{"text": "More information", "href": "https://www.iana.org/domains/example"}],
+    }
+
+    assert _extraction_failure_message(result) is None
 
 
 def test_preset_planner_outputs_hacker_news_sequence():
@@ -65,31 +133,3 @@ def test_preset_fallback_pages_support_extractors():
     assert mdn_index is not None and "/Web/API/Fetch_API" in mdn_index
     assert mdn_fetch is not None and "<h1>Fetch API</h1>" in mdn_fetch
     assert httpbin_form is not None and 'name="custname"' in httpbin_form
-
-
-def test_fallback_planner_uses_wikipedia_article_for_real_wiki_task():
-    actions = fallback_plan(
-        "Open wikipedia.org, search Ada Lovelace, and extract title, summary, and birth date.",
-        "https://www.wikipedia.org/",
-    )
-
-    assert [action.type for action in actions] == ["goto", "wait", "extract"]
-    assert actions[0].url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
-    assert actions[2].target == "wikipedia article summary"
-    assert all(action.value != "AURORA TASK LAMP" for action in actions)
-
-
-def test_fallback_planner_keeps_unknown_real_sites_read_only():
-    actions = fallback_plan("Extract the visible page summary.", "https://example.com/")
-
-    assert [action.type for action in actions] == ["goto", "wait", "extract"]
-    assert actions[0].url == "https://example.com/"
-    assert actions[2].target == "page summary"
-
-
-def test_fallback_planner_supports_httpbin_test_form():
-    actions = fallback_plan("Fill and submit the public httpbin test form.", "https://httpbin.org/forms/post")
-
-    assert actions[0].url == "https://httpbin.org/forms/post"
-    assert actions[-1].target == "httpbin form echo"
-    assert any(action.selector == 'input[name="custemail"]' for action in actions)

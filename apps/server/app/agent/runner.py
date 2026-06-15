@@ -1,7 +1,9 @@
 import asyncio
+import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from app.agent.actions import AgentAction, describe_action
@@ -9,8 +11,24 @@ from app.agent.browser import create_browser_session
 from app.agent.safety import assert_safe_action
 from app.config import Settings
 from app.llm.client import plan_actions
-from app.models import ChatMessage, ChecklistItem, ScreenshotItem, TimelineStep
+from app.llm.schemas import PlannerConfigurationError, PlannerError, TaskRecognitionError
+from app.models import ChatMessage, ChecklistItem, FailureType, ScreenshotItem, TimelineStep
 from app.storage.runs_store import RunsStore
+
+
+BLOCKED_EXTRACTION_MARKERS = (
+    "just a moment",
+    "client challenge",
+    "verify you are human",
+    "verifies you are not a bot",
+    "robot or human",
+    "are you a robot",
+    "captcha",
+    "access denied",
+    "request blocked",
+    "请求被拦截",
+    "enter the characters seen in the image",
+)
 
 
 def now_iso() -> str:
@@ -59,9 +77,18 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
     run.controlStatus = "controlling"
     run.startedAt = now_iso()
     store.set_status(run_id, "running")
+    run_started = time.perf_counter()
 
     preset_id = run.inputs.get("preset_id")
-    planner = await plan_actions(run.task, run.url, settings, preset_id=str(preset_id) if preset_id else None)
+    try:
+        planner = await plan_actions(run.task, run.url, settings, preset_id=str(preset_id) if preset_id else None)
+    except TaskRecognitionError as exc:
+        _mark_failed(run_id, store, "recognition_failed", "recognition", str(exc), run_started)
+        return
+    except (PlannerConfigurationError, PlannerError) as exc:
+        _mark_failed(run_id, store, "planning_failed", "planning", str(exc), run_started)
+        return
+
     run = store.get_run(run_id)
     if run is None:
         return
@@ -106,7 +133,6 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
     )
 
     session = await create_browser_session(settings)
-    run_started = time.perf_counter()
     try:
         for action_index, action in enumerate(planner.actions, start=1):
             run = store.get_run(run_id)
@@ -128,8 +154,10 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
             try:
                 assert_safe_action(action)
                 result = await session.execute(action)
+                extraction_failure = None
                 if action.type == "extract":
                     store.set_extracted(run_id, result)
+                    extraction_failure = _extraction_failure_message(result)
                 screenshot_path = settings.artifacts_dir / f"{run_id}_{action_index:02d}.{'png' if session.__class__.__name__.startswith('Playwright') else 'svg'}"
                 await session.screenshot(screenshot_path, step.description)
                 # Screenshots drive both Browser Preview and the Recording tab.
@@ -141,6 +169,8 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
                 )
                 store.add_screenshot(run_id, shot)
                 step.screenshotUrl = shot.imageUrl
+                if extraction_failure:
+                    raise RuntimeError(extraction_failure)
                 step.status = "success"
                 step.endedAt = now_iso()
                 step.durationMs = ms_since(start)
@@ -155,6 +185,7 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
                 if run:
                     run.finishedAt = now_iso()
                     run.durationMs = ms_since(run_started)
+                    run.failureType = "execution_failed"
                     store.update_run(run)
                 store.set_status(run_id, "failed")
                 store.add_message(
@@ -186,6 +217,63 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
         )
     finally:
         await session.close()
+
+
+def _extraction_failure_message(result: Any) -> str | None:
+    if not isinstance(result, dict):
+        return None
+
+    content = json.dumps(result, ensure_ascii=False).casefold()
+    if any(marker in content for marker in BLOCKED_EXTRACTION_MARKERS):
+        return "The site blocked automated browsing or showed a verification page."
+    if "best buy international: select your country" in content or "choose a country" in content:
+        return "The site showed an interstitial country selector instead of the requested results."
+    if _is_empty_page_summary(result):
+        return "The page did not expose extractable content for this task."
+    return None
+
+
+def _is_empty_page_summary(result: dict[str, Any]) -> bool:
+    if not {"page_title", "url", "paragraphs", "headings", "links"}.issubset(result):
+        return False
+
+    title = str(result.get("page_title") or "").strip()
+    heading = str(result.get("heading") or "").strip()
+    paragraphs = result.get("paragraphs") or []
+    headings = result.get("headings") or []
+    links = result.get("links") or []
+    return bool(title) and not heading and not paragraphs and not headings and not links
+
+
+def _mark_failed(run_id: str, store: RunsStore, failure_type: FailureType, action: str, error: str, started_at: float) -> None:
+    step = TimelineStep(
+        id=f"step_{uuid4().hex[:10]}",
+        index=0,
+        action=action,
+        description=error,
+        status="failed",
+        startedAt=now_iso(),
+        endedAt=now_iso(),
+        durationMs=0,
+        error=error,
+    )
+    store.add_step(run_id, step)
+    run = store.get_run(run_id)
+    if run:
+        run.finishedAt = now_iso()
+        run.durationMs = ms_since(started_at)
+        run.failureType = failure_type
+        store.update_run(run)
+    store.set_status(run_id, "failed")
+    store.add_message(
+        run_id,
+        ChatMessage(
+            id=f"msg_{uuid4().hex[:10]}",
+            role="assistant",
+            content=f"I could not plan this run: {error}",
+            createdAt=now_iso(),
+        ),
+    )
 
 
 async def _mark_stopped(run_id: str, store: RunsStore) -> None:

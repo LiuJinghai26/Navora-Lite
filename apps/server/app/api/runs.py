@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import re
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
@@ -6,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from app.agent.presets import PRESET_TASKS
 from app.agent.runner import run_agent
 from app.config import get_settings
+from app.llm.client import has_planner_config
 from app.models import ChatMessage, CreateRunRequest, CreateRunResponse, Run
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -29,21 +31,31 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _start_url_for_task(task: str, url: str) -> str:
+    match = re.search(r"https?://[^\s`，。；,;]+", task)
+    if match and url == "http://localhost:8000/mock/findparts":
+        return match.group(0).rstrip(").]")
+    return url
+
+
 @router.post("", response_model=CreateRunResponse)
 async def create_run(payload: CreateRunRequest, request: Request, background_tasks: BackgroundTasks) -> CreateRunResponse:
     store = request.app.state.runs_store
     settings = get_settings()
+    start_url = _start_url_for_task(payload.task, payload.url)
+    if payload.auto_start and not payload.preset_id and not has_planner_config(settings):
+        raise HTTPException(status_code=400, detail="请先在 Settings 中配置模型 API，再启动浏览器任务。")
     run_id = f"run_{uuid4().hex[:18]}"
     run = Run(
         id=run_id,
         title=_title_for_task(payload.task, payload.preset_id),
         task=payload.task,
-        url=payload.url,
+        url=start_url,
         status="idle",
         controlStatus="idle",
         inputs={
             "task": payload.task,
-            "url": payload.url,
+            "url": start_url,
             "model": settings.model_name,
             "browser": settings.browser_channel,
             "preset_id": payload.preset_id,

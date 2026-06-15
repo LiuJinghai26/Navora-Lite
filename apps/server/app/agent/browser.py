@@ -382,6 +382,10 @@ class PlaywrightBrowserSession(BrowserSession):
                 return await self._extract_httpbin_form_echo()
             if target == "page summary":
                 return await self._extract_page_summary()
+            if "news.ycombinator.com" in self.page.url:
+                return await self._extract_hacker_news_stories()
+            if "github.com/trending" in self.page.url:
+                return await self._extract_github_trending()
             if "wikipedia.org" in self.page.url:
                 return await self._extract_wikipedia_article_summary()
             if "httpbin.org/post" in self.page.url:
@@ -399,13 +403,21 @@ class PlaywrightBrowserSession(BrowserSession):
         if "search" in target:
             candidates.extend(
                 [
+                    '[role="searchbox"]',
                     'input[name="search"]',
+                    'input[name="q"]',
+                    'input[name="query"]',
+                    'input[name*="search" i]',
                     'input[type="search"]',
                     'input[aria-label*="search" i]',
                     'input[placeholder*="search" i]',
+                    'input[id*="search" i]',
+                    'input[class*="search" i]',
                     'textarea[aria-label*="search" i]',
                     "#searchInput",
                     "#search-input input",
+                    "form[role='search'] input",
+                    "form input[type='text']",
                 ]
             )
         candidates.append(target_to_selector(action.target))
@@ -421,7 +433,9 @@ class PlaywrightBrowserSession(BrowserSession):
                     'button[type="submit"]',
                     'input[type="submit"]',
                     'button[aria-label*="search" i]',
+                    'button[class*="search" i]',
                     'button:has-text("Search")',
+                    'input[value*="Search" i]',
                 ]
             )
         if "submit" in target_key:
@@ -457,7 +471,15 @@ class PlaywrightBrowserSession(BrowserSession):
             await self.page.wait_for_load_state("domcontentloaded", timeout=5000)
         except Exception:
             pass
-        await self.page.wait_for_timeout(300)
+        try:
+            await self.page.wait_for_load_state("load", timeout=8000)
+        except Exception:
+            pass
+        try:
+            await self.page.wait_for_load_state("networkidle", timeout=3000)
+        except Exception:
+            pass
+        await self.page.wait_for_timeout(800)
 
     async def _try_fill(self, selectors: list[str | None], value: str) -> None:
         last_error: Exception | None = None
@@ -481,8 +503,27 @@ class PlaywrightBrowserSession(BrowserSession):
         if last_error:
             raise last_error
 
+    async def _evaluate(self, script: str) -> Any:
+        last_error: Exception | None = None
+        for _ in range(3):
+            try:
+                return await self.page.evaluate(script)
+            except Exception as exc:
+                last_error = exc
+                message = str(exc)
+                if "Execution context was destroyed" not in message and "Cannot find context" not in message:
+                    raise
+                try:
+                    await self.page.wait_for_load_state("load", timeout=8000)
+                except Exception:
+                    pass
+                await self.page.wait_for_timeout(1000)
+        if last_error:
+            raise last_error
+        return None
+
     async def _extract_hacker_news_top_story(self) -> Any:
-        return await self.page.evaluate(
+        return await self._evaluate(
             """() => {
                 const row = document.querySelector('.athing');
                 const subtext = row?.nextElementSibling;
@@ -501,6 +542,61 @@ class PlaywrightBrowserSession(BrowserSession):
                     points: subtext?.querySelector('.score')?.textContent?.trim() || '',
                     age: subtext?.querySelector('.age')?.textContent?.trim() || '',
                     comments
+                };
+            }"""
+        )
+
+    async def _extract_hacker_news_stories(self) -> Any:
+        return await self._evaluate(
+            """() => {
+                const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+                return {
+                    source: 'Hacker News',
+                    url: window.location.href,
+                    stories: Array.from(document.querySelectorAll('.athing')).slice(0, 10).map((row) => {
+                        const subtext = row.nextElementSibling;
+                        const titleLink = row.querySelector('.titleline a') || row.querySelector('.storylink');
+                        const href = titleLink?.href || '';
+                        const links = Array.from(subtext?.querySelectorAll('a') || []);
+                        const comments = links.map((link) => clean(link.textContent)).find((text) => /comment/i.test(text)) || '';
+                        return {
+                            rank: Number.parseInt(clean(row.querySelector('.rank')?.textContent), 10) || null,
+                            title: clean(titleLink?.textContent),
+                            url: href,
+                            site: clean(row.querySelector('.sitebit.comhead')?.textContent).replace(/[()]/g, '') || (href ? new URL(href).hostname : ''),
+                            points: clean(subtext?.querySelector('.score')?.textContent),
+                            age: clean(subtext?.querySelector('.age')?.textContent),
+                            comments
+                        };
+                    })
+                };
+            }"""
+        )
+
+    async def _extract_github_trending(self) -> Any:
+        return await self._evaluate(
+            """() => {
+                const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+                return {
+                    source: 'GitHub Trending',
+                    url: window.location.href,
+                    repositories: Array.from(document.querySelectorAll('article.Box-row')).slice(0, 10).map((row) => {
+                        const link = row.querySelector('h2 a');
+                        const href = link?.href || '';
+                        const repo = clean(link?.textContent).replace(/\\s+/g, '');
+                        const starsLink = Array.from(row.querySelectorAll('a')).find((item) => /stargazers/.test(item.href));
+                        const forkLink = Array.from(row.querySelectorAll('a')).find((item) => /forks/.test(item.href));
+                        const today = Array.from(row.querySelectorAll('span')).map((item) => clean(item.textContent)).find((text) => /stars today/i.test(text)) || '';
+                        return {
+                            name: repo,
+                            url: href,
+                            description: clean(row.querySelector('p')?.textContent),
+                            language: clean(row.querySelector('[itemprop="programmingLanguage"]')?.textContent),
+                            stars: clean(starsLink?.textContent),
+                            forks: clean(forkLink?.textContent),
+                            stars_today: today
+                        };
+                    })
                 };
             }"""
         )
@@ -543,7 +639,7 @@ class PlaywrightBrowserSession(BrowserSession):
             await self.page.unroute(url, fulfill)
 
     async def _extract_wikipedia_python_summary(self) -> Any:
-        return await self.page.evaluate(
+        return await self._evaluate(
             """() => {
                 const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
                 const lead = Array.from(document.querySelectorAll('#mw-content-text .mw-parser-output > p'))
@@ -566,7 +662,7 @@ class PlaywrightBrowserSession(BrowserSession):
         )
 
     async def _extract_mock_cart_summary(self) -> Any:
-        return await self.page.evaluate(
+        return await self._evaluate(
             """() => {
                 const product = document.querySelector('[data-product-name]')?.getAttribute('data-product-name')
                   || document.querySelector('#cart-product-name')?.textContent
@@ -591,7 +687,7 @@ class PlaywrightBrowserSession(BrowserSession):
         )
 
     async def _extract_wikipedia_article_summary(self) -> Any:
-        return await self.page.evaluate(
+        return await self._evaluate(
             """() => {
                 const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
                 const lead = Array.from(document.querySelectorAll('#mw-content-text .mw-parser-output > p'))
@@ -621,7 +717,7 @@ class PlaywrightBrowserSession(BrowserSession):
         )
 
     async def _extract_mdn_web_api_overview(self) -> Any:
-        return await self.page.evaluate(
+        return await self._evaluate(
             """() => {
                 const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
                 const lead = Array.from(document.querySelectorAll('main p'))
@@ -642,7 +738,7 @@ class PlaywrightBrowserSession(BrowserSession):
         )
 
     async def _extract_mdn_fetch_api_detail(self) -> Any:
-        return await self.page.evaluate(
+        return await self._evaluate(
             """() => {
                 const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
                 const summary = Array.from(document.querySelectorAll('main p'))
@@ -665,7 +761,7 @@ class PlaywrightBrowserSession(BrowserSession):
         )
 
     async def _extract_httpbin_form_echo(self) -> Any:
-        return await self.page.evaluate(
+        return await self._evaluate(
             """() => {
                 const text = document.body?.innerText || '';
                 try {
@@ -687,7 +783,7 @@ class PlaywrightBrowserSession(BrowserSession):
         )
 
     async def _extract_page_summary(self) -> Any:
-        return await self.page.evaluate(
+        return await self._evaluate(
             """() => {
                 const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
                 const paragraphs = Array.from(document.querySelectorAll('main p, article p, p'))
