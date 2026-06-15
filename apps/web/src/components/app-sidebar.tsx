@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getTasks } from "@/lib/api";
+import { DEFAULT_PROFILE, PROFILE_UPDATED_EVENT, readStoredProfile, type UserProfile } from "@/lib/profile";
 import { buildRunStats, failureLabels } from "@/lib/run-stats";
 import type { FailureType, Run } from "@/lib/types";
 
@@ -19,6 +20,7 @@ const nav = [
 export function AppSidebar() {
   const pathname = usePathname();
   const [tasks, setTasks] = useState<Run[]>([]);
+  const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
 
   useEffect(() => {
     // Refresh sidebar stats whenever navigation changes because task history may have changed.
@@ -34,6 +36,17 @@ export function AppSidebar() {
       mounted = false;
     };
   }, [pathname]);
+
+  useEffect(() => {
+    setProfile(readStoredProfile());
+    const updateProfile = () => setProfile(readStoredProfile());
+    window.addEventListener(PROFILE_UPDATED_EVENT, updateProfile);
+    window.addEventListener("storage", updateProfile);
+    return () => {
+      window.removeEventListener(PROFILE_UPDATED_EVENT, updateProfile);
+      window.removeEventListener("storage", updateProfile);
+    };
+  }, []);
 
   const stats = useMemo(() => buildRunStats(tasks), [tasks]);
 
@@ -112,17 +125,26 @@ export function AppSidebar() {
         </div>
       </Link>
 
-      <div className="mt-auto hidden rounded-lg border border-stroke bg-panelSoft p-3 md:block">
+      <Link
+        href="/profile"
+        className={clsx(
+          "mt-auto hidden rounded-lg border p-3 transition md:block",
+          pathname.startsWith("/profile")
+            ? "border-cyan-400/40 bg-cyan-400/10"
+            : "border-stroke bg-panelSoft hover:border-cyan-400/45 hover:bg-cyan-400/10"
+        )}
+        aria-label="Open profile"
+      >
         <div className="flex items-center gap-3">
           <div className="grid h-9 w-9 place-items-center rounded-md bg-emerald-400/15 text-sm font-bold text-emerald-100">
-            JL
+            {profile.initials}
           </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-100">Jinghai Liu</div>
-            <div className="text-xs text-slate-500">Personal account</div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-slate-100">{profile.name}</div>
+            <div className="truncate text-xs text-slate-500">{profile.role}</div>
           </div>
         </div>
-      </div>
+      </Link>
     </aside>
   );
 }
