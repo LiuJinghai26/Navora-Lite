@@ -1,5 +1,12 @@
-﻿from pathlib import Path
+﻿import asyncio
+import json
+from pathlib import Path
+import socket
+import subprocess
+import time
 from typing import Any
+import urllib.request
+from uuid import uuid4
 
 from app.agent.actions import AgentAction, target_to_selector
 from app.config import Settings
@@ -27,13 +34,18 @@ class BrowserSession:
     async def close(self) -> None:
         raise NotImplementedError
 
+    async def keep_open(self) -> None:
+        raise NotImplementedError
+
 
 class PlaywrightBrowserSession(BrowserSession):
-    def __init__(self, playwright: Any, browser: Any, page: Any):
+    def __init__(self, playwright: Any, browser: Any, page: Any, external_process: subprocess.Popen | None = None):
         self.playwright = playwright
         self.browser = browser
         self.page = page
+        self.external_process = external_process
         self.context: dict[str, Any] = {}
+        self._released = False
 
     async def execute(self, action: AgentAction) -> Any:
         # Dispatch stays centralized so screenshots, timing, and safety checks remain runner-owned.
@@ -451,8 +463,21 @@ class PlaywrightBrowserSession(BrowserSession):
         await self.page.screenshot(path=str(path), full_page=False)
 
     async def close(self) -> None:
+        if self._released:
+            return
         await self.browser.close()
         await self.playwright.stop()
+        self._released = True
+
+    async def keep_open(self) -> None:
+        if self._released:
+            return
+        if self.external_process is None:
+            await self.close()
+            return
+        # For CDP-launched visible browsers, stopping Playwright only detaches control.
+        await self.playwright.stop()
+        self._released = True
 
 
 async def create_browser_session(settings: Settings) -> BrowserSession:
@@ -463,6 +488,8 @@ async def create_browser_session(settings: Settings) -> BrowserSession:
 
         playwright = await async_playwright().start()
         browser_type = playwright.chromium
+        if not settings.browser_headless:
+            return await _create_visible_browser_session(playwright, browser_type, settings)
         browser = await browser_type.launch(headless=settings.browser_headless)
         page = await browser.new_page(
             viewport={
@@ -474,4 +501,77 @@ async def create_browser_session(settings: Settings) -> BrowserSession:
     except Exception as exc:
         if playwright:
             await playwright.stop()
-        raise RuntimeError(f"Could not launch Playwright browser: {exc}") from exc
+        detail = str(exc) or exc.__class__.__name__
+        raise RuntimeError(f"Could not launch Playwright browser: {detail}") from exc
+
+
+async def _create_visible_browser_session(playwright: Any, browser_type: Any, settings: Settings) -> BrowserSession:
+    port = _free_port()
+    profile_dir = settings.artifacts_dir.parent / "browser-profiles" / f"profile_{uuid4().hex[:12]}"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    process = _launch_visible_chromium(browser_type.executable_path, profile_dir, port, settings)
+    try:
+        await _wait_for_cdp(port)
+        browser = await browser_type.connect_over_cdp(f"http://127.0.0.1:{port}")
+        context = browser.contexts[0]
+        page = context.pages[0] if context.pages else await context.new_page()
+        await page.set_viewport_size(
+            {
+                "width": settings.browser_viewport_width,
+                "height": settings.browser_viewport_height,
+            }
+        )
+        return PlaywrightBrowserSession(playwright, browser, page, external_process=process)
+    except Exception:
+        process.terminate()
+        raise
+
+
+def _launch_visible_chromium(executable_path: str, profile_dir: Path, port: int, settings: Settings) -> subprocess.Popen:
+    command = [
+        executable_path,
+        f"--remote-debugging-port={port}",
+        f"--user-data-dir={profile_dir}",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-session-crashed-bubble",
+        f"--window-size={settings.browser_viewport_width},{settings.browser_viewport_height}",
+        "about:blank",
+    ]
+    creationflags = 0
+    if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+        creationflags |= subprocess.CREATE_NEW_PROCESS_GROUP
+    if hasattr(subprocess, "DETACHED_PROCESS"):
+        creationflags |= subprocess.DETACHED_PROCESS
+    return subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=creationflags,
+    )
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+async def _wait_for_cdp(port: int) -> None:
+    url = f"http://127.0.0.1:{port}/json/version"
+    deadline = time.time() + 10
+    last_error: Exception | None = None
+    while time.time() < deadline:
+        try:
+            await asyncio.to_thread(_read_json_url, url)
+            return
+        except Exception as exc:
+            last_error = exc
+            await asyncio.sleep(0.2)
+    raise RuntimeError(f"Visible Chromium did not expose CDP: {last_error}")
+
+
+def _read_json_url(url: str) -> Any:
+    with urllib.request.urlopen(url, timeout=0.5) as response:
+        return json.loads(response.read().decode("utf-8"))

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from app.agent.actions import AgentAction
-from app.agent.runner import run_agent
+from app.agent.runner import OPEN_BROWSER_SESSIONS, close_or_keep_browser_session, run_agent
 from app.llm.schemas import PlannerResult
 from app.models import ChatMessage, Run
 from app.storage.runs_store import RunsStore
@@ -36,10 +36,53 @@ def test_runner_marks_planner_fallback_as_failure(monkeypatch, tmp_path):
     )
     monkeypatch.setattr("app.agent.runner.plan_actions", fake_plan_actions)
 
-    asyncio.run(run_agent("run_test", store, SimpleNamespace()))
+    run_agent("run_test", store, SimpleNamespace())
 
     run = store.get_run("run_test")
     assert run is not None
     assert run.status == "failed"
     assert run.failureType == "planning_failed"
     assert all(step.action != "fallback" for step in run.timeline)
+
+
+def test_headless_browser_session_closes_after_run():
+    class FakeSession:
+        def __init__(self):
+            self.closed = False
+            self.kept_open = False
+
+        async def close(self):
+            self.closed = True
+
+        async def keep_open(self):
+            self.kept_open = True
+
+    session = FakeSession()
+    asyncio.run(close_or_keep_browser_session(session, SimpleNamespace(browser_headless=True)))
+
+    assert session.closed is True
+    assert session.kept_open is False
+
+
+def test_visible_browser_session_stays_open_after_run():
+    class FakeSession:
+        def __init__(self):
+            self.closed = False
+            self.kept_open = False
+
+        async def close(self):
+            self.closed = True
+
+        async def keep_open(self):
+            self.kept_open = True
+
+    session = FakeSession()
+    OPEN_BROWSER_SESSIONS.clear()
+    try:
+        asyncio.run(close_or_keep_browser_session(session, SimpleNamespace(browser_headless=False)))
+
+        assert session.closed is False
+        assert session.kept_open is True
+        assert session in OPEN_BROWSER_SESSIONS
+    finally:
+        OPEN_BROWSER_SESSIONS.clear()

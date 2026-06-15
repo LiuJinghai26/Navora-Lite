@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,8 @@ BLOCKED_EXTRACTION_MARKERS = (
     "请求被拦截",
     "enter the characters seen in the image",
 )
+
+OPEN_BROWSER_SESSIONS: list[Any] = []
 
 
 def now_iso() -> str:
@@ -66,7 +69,36 @@ def step_to_checklist(action: AgentAction) -> str:
     return describe_action(action)
 
 
-async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
+async def close_or_keep_browser_session(session: Any, settings: Settings) -> None:
+    if settings.browser_headless:
+        await session.close()
+        return
+    # Visible browser runs detach Playwright control but keep Chromium alive for inspection.
+    await session.keep_open()
+    OPEN_BROWSER_SESSIONS.append(session)
+
+
+def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
+    # Uvicorn can run a Windows Selector loop, so browser work gets its own loop.
+    loop = _new_browser_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(_run_agent_async(run_id, store, settings))
+    finally:
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
+
+
+def _new_browser_loop() -> asyncio.AbstractEventLoop:
+    if sys.platform == "win32":
+        return asyncio.WindowsProactorEventLoopPolicy().new_event_loop()
+    return asyncio.new_event_loop()
+
+
+async def _run_agent_async(run_id: str, store: RunsStore, settings: Settings) -> None:
     run = store.get_run(run_id)
     if run is None:
         return
@@ -199,7 +231,7 @@ async def run_agent(run_id: str, store: RunsStore, settings: Settings) -> None:
             ),
         )
     finally:
-        await session.close()
+        await close_or_keep_browser_session(session, settings)
 
 
 def _extraction_failure_message(result: Any) -> str | None:

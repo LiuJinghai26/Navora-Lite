@@ -6,6 +6,9 @@ from typing import Any
 from app.models import ChatMessage, Run, RunEvent, ScreenshotItem, TimelineStep
 
 
+Subscriber = tuple[asyncio.AbstractEventLoop, asyncio.Queue[RunEvent]]
+
+
 def _to_dict(model: Any) -> dict[str, Any]:
     # Support Pydantic v2 while keeping this helper harmless for v1-style models.
     if hasattr(model, "model_dump"):
@@ -19,7 +22,7 @@ class RunsStore:
         self.storage_path = storage_path
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         self._runs: dict[str, Run] = {}
-        self._subscribers: dict[str, set[asyncio.Queue[RunEvent]]] = {}
+        self._subscribers: dict[str, set[Subscriber]] = {}
         self._load()
 
     def _load(self) -> None:
@@ -126,14 +129,32 @@ class RunsStore:
 
     def publish(self, run_id: str, event: RunEvent) -> None:
         # Queues decouple the runner from slow or disconnected browser clients.
-        for queue in list(self._subscribers.get(run_id, set())):
-            queue.put_nowait(event)
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+        subscribers = self._subscribers.get(run_id, set())
+        stale: list[Subscriber] = []
+        for loop, queue in list(subscribers):
+            if loop.is_closed():
+                stale.append((loop, queue))
+                continue
+            if running_loop is loop:
+                queue.put_nowait(event)
+                continue
+            try:
+                loop.call_soon_threadsafe(queue.put_nowait, event)
+            except RuntimeError:
+                stale.append((loop, queue))
+        for subscriber in stale:
+            subscribers.discard(subscriber)
 
     async def subscribe(self, run_id: str):
         # Each client gets its own queue so slow consumers do not block other clients.
         queue: asyncio.Queue[RunEvent] = asyncio.Queue()
-        self._subscribers.setdefault(run_id, set()).add(queue)
+        subscriber = (asyncio.get_running_loop(), queue)
+        self._subscribers.setdefault(run_id, set()).add(subscriber)
         try:
             yield queue
         finally:
-            self._subscribers.get(run_id, set()).discard(queue)
+            self._subscribers.get(run_id, set()).discard(subscriber)

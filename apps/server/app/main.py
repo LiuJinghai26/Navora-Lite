@@ -1,3 +1,6 @@
+import asyncio
+import sys
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -6,6 +9,10 @@ from app.api import events, runs, settings as settings_api, tasks
 from app.config import get_settings
 from app.storage.runs_store import RunsStore
 
+
+if sys.platform == "win32":
+    # Playwright starts a driver subprocess, which requires Proactor on Windows.
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 settings = get_settings()
 app = FastAPI(title="Navora Lite API", version="0.1.0")

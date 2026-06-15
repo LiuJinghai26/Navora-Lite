@@ -24,6 +24,7 @@ Navora Lite is a chat-first browser Agent Dashboard. It lets a user create brows
 
 - Preset tasks can run without a model API because their action plans are built into the backend.
 - Free-form browser tasks require model settings before they can auto-start.
+- `BROWSER_HEADLESS=true` runs Chromium without a visible window; `BROWSER_HEADLESS=false` opens a visible browser, detaches control after the run, and keeps the browser open for inspection.
 - The old local mock shopping page is disabled and no longer exposed as `/mock/findparts`.
 - If Playwright or Chromium cannot launch, the run fails with an execution error. Install Chromium with Playwright before running browser tasks.
 

@@ -90,7 +90,7 @@ apps/server/.env
 | `MAX_TOKENS` | `4096` | 模型输出 token 上限。 |
 | `TEMPERATURE` | `0.2` | 模型温度。 |
 | `LLM_TIMEOUT_SECONDS` | `60.0` | 模型请求超时时间。 |
-| `BROWSER_HEADLESS` | `true` | Chromium 是否无头运行。 |
+| `BROWSER_HEADLESS` | `true` | Chromium 是否无头运行。`true` 不显示浏览器窗口；`false` 打开可见浏览器窗口。 |
 | `BROWSER_CHANNEL` | `chromium` | 当前会写入 run inputs，但 Playwright launch 未使用 channel 参数。 |
 | `BROWSER_VIEWPORT_WIDTH` | `1280` | 浏览器视口宽度。 |
 | `BROWSER_VIEWPORT_HEIGHT` | `800` | 浏览器视口高度。 |
@@ -173,7 +173,7 @@ recognition_failed | planning_failed | execution_failed
 13. 替换 timeline step 为 success，记录耗时和截图 URL。
 14. 任一步失败则把 run 标记为 failed，并追加错误消息。
 15. 全部动作成功后标记 run 为 completed，并追加完成消息。
-16. 最后关闭 browser session。
+16. 根据 `BROWSER_HEADLESS` 处理 browser session：headless 模式关闭浏览器；非 headless 模式断开 Playwright 控制连接但保留 Chromium 进程，便于任务结束后人工检查最终页面。
 
 ### 4.3 停止 run
 
@@ -269,9 +269,10 @@ POST {API_BASE}/chat/completions
 
 1. 动态导入 `playwright.async_api.async_playwright`。
 2. 启动 Playwright。
-3. 使用 `playwright.chromium.launch(headless=settings.browser_headless)`。
-4. 创建指定 viewport 的 page。
-5. 返回 `PlaywrightBrowserSession`。
+3. 如果 `BROWSER_HEADLESS=true`，使用 `playwright.chromium.launch(headless=True)` 无窗口执行。
+4. 如果 `BROWSER_HEADLESS=false`，先启动独立 Chromium 进程，再通过 CDP 连接控制；任务结束后断开 Playwright，但不关闭该 Chromium 进程。
+5. 创建指定 viewport 的 page。
+6. 返回 `PlaywrightBrowserSession`。
 
 如果导入、启动或 Chromium launch 失败，函数抛出 `RuntimeError`。runner 捕获后把 run 标为 `execution_failed`。
 

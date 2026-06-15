@@ -90,7 +90,7 @@ Core settings:
 | `MAX_TOKENS` | `4096` | Planner response token limit. |
 | `TEMPERATURE` | `0.2` | Planner sampling temperature. |
 | `LLM_TIMEOUT_SECONDS` | `60.0` | HTTP timeout for planner calls. |
-| `BROWSER_HEADLESS` | `true` | Whether Chromium runs headlessly. |
+| `BROWSER_HEADLESS` | `true` | Whether Chromium runs headlessly. `true` shows no browser window; `false` opens a visible browser window. |
 | `BROWSER_CHANNEL` | `chromium` | Stored in run inputs, but not passed as a Playwright launch channel. |
 | `BROWSER_VIEWPORT_WIDTH` | `1280` | Browser viewport width. |
 | `BROWSER_VIEWPORT_HEIGHT` | `800` | Browser viewport height. |
@@ -173,7 +173,7 @@ Execution flow:
 13. Replace the timeline step with final success state, duration, and screenshot URL.
 14. On any action failure, mark the run failed and append an assistant error message.
 15. After all actions succeed, mark the run completed and append a completion message.
-16. Close the browser session in `finally`.
+16. Handle the browser session according to `BROWSER_HEADLESS`: headless runs close the browser, while visible runs detach Playwright control and keep the Chromium process open for post-run inspection.
 
 ### 4.3 Stop Flow
 
@@ -269,9 +269,10 @@ If the request fails, the response shape is invalid, or safety validation fails,
 
 1. Dynamically imports `playwright.async_api.async_playwright`.
 2. Starts Playwright.
-3. Launches Chromium with `headless=settings.browser_headless`.
-4. Creates a page using the configured viewport.
-5. Returns `PlaywrightBrowserSession`.
+3. When `BROWSER_HEADLESS=true`, launches Chromium with `playwright.chromium.launch(headless=True)`.
+4. When `BROWSER_HEADLESS=false`, starts an independent Chromium process and connects over CDP; after the run, Playwright detaches without closing that Chromium process.
+5. Creates a page using the configured viewport.
+6. Returns `PlaywrightBrowserSession`.
 
 If import, startup, or Chromium launch fails, it raises `RuntimeError`. The runner catches that and marks the run as `execution_failed`.
 
