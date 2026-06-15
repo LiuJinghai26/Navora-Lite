@@ -5,9 +5,9 @@ import { BarChart3, ListChecks, MessageSquare, Monitor, Settings } from "lucide-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { getTasks } from "@/lib/api";
 import { DEFAULT_PROFILE, PROFILE_UPDATED_EVENT, readStoredProfile, type UserProfile } from "@/lib/profile";
 import { buildRunStats, failureLabels } from "@/lib/run-stats";
+import { getCachedTasks, refreshTaskCache, subscribeTaskCache } from "@/lib/task-cache";
 import type { FailureType, Run } from "@/lib/types";
 
 const nav = [
@@ -19,23 +19,15 @@ const nav = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const [tasks, setTasks] = useState<Run[]>([]);
+  const [tasks, setTasks] = useState<Run[]>(() => getCachedTasks() || []);
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
 
   useEffect(() => {
-    // Refresh sidebar stats whenever navigation changes because task history may have changed.
-    let mounted = true;
-    getTasks()
-      .then((items) => {
-        if (mounted) setTasks(items);
-      })
-      .catch(() => {
-        if (mounted) setTasks([]);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [pathname]);
+    // Keep the last known stats visible while a background refresh fetches fresh history.
+    const unsubscribe = subscribeTaskCache(setTasks);
+    void refreshTaskCache().catch(() => undefined);
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     setProfile(readStoredProfile());
