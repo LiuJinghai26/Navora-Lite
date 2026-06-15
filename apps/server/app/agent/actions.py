@@ -52,17 +52,5 @@ def target_to_selector(target: str | None) -> str | None:
         "search field": "#search-input",
         "search box": "#search-input",
         "search button": "#search-button",
-        "product aurora task lamp": "[data-testid='product-link']",
-        "aurora task lamp": "[data-testid='product-link']",
-        "product link": "[data-testid='product-link']",
-        "open product": "[data-testid='product-link']",
-        "color warm white": "#color-warm-white",
-        "warm white": "#color-warm-white",
-        "quantity": "#quantity",
-        "quantity input": "#quantity",
-        "add to cart": "#add-to-cart",
-        "cart": "#cart-link",
-        "cart button": "#cart-link",
-        "cart link": "#cart-link",
     }
     return mapping.get(key)

@@ -1,8 +1,5 @@
-from pathlib import Path
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import events, runs, settings as settings_api, tasks
@@ -33,8 +30,3 @@ app.include_router(settings_api.router)
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "app": "navora-lite"}
-
-
-@app.get("/mock/findparts", response_class=HTMLResponse)
-async def mock_findparts() -> str:
-    return Path(__file__).with_name("mock_findparts.html").read_text(encoding="utf-8")

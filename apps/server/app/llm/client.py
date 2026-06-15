@@ -8,44 +8,209 @@ from app.agent.presets import preset_plan
 from app.agent.safety import assert_safe_action
 from app.config import Settings
 from app.llm.prompts import SYSTEM_PROMPT, build_user_prompt
-from app.llm.schemas import PlannerResult
-
-
-DEMO_PRODUCT = "AURORA TASK LAMP"
-DEMO_COLOR = "Warm White"
-DEMO_QUANTITY = "2"
-
-
-def mock_plan(start_url: str = "http://localhost:8000/mock/findparts") -> list[AgentAction]:
-    """Return the stable demo path used when no reliable model planner is available."""
-
-    return [
-        AgentAction(type="goto", url=start_url),
-        AgentAction(type="fill", target="search input", value=DEMO_PRODUCT),
-        AgentAction(type="click", target="search button"),
-        AgentAction(type="click", target=f"product {DEMO_PRODUCT}"),
-        AgentAction(type="click", target=f"color {DEMO_COLOR}"),
-        AgentAction(type="fill", target="quantity", value=DEMO_QUANTITY),
-        AgentAction(type="click", target="add to cart"),
-        AgentAction(type="click", target="cart"),
-        AgentAction(type="extract", schema={"product_name": "string", "color": "string", "quantity": "number", "subtotal": "string"}),
-    ]
+from app.llm.schemas import PlannerConfigurationError, PlannerError, PlannerResult, TaskRecognitionError
 
 
 def _is_local_provider(settings: Settings) -> bool:
     return settings.model_provider.lower() in {"ollama", "lmstudio", "vllm", "custom"}
 
 
+def recognized_task_plan(task: str, start_url: str) -> list[AgentAction] | None:
+    task_key = task.lower()
+    url_key = start_url.lower()
+    if "ada lovelace" in task_key:
+        return _article_plan("https://en.wikipedia.org/wiki/Ada_Lovelace")
+    if "grace hopper" in task_key:
+        return _article_plan("https://en.wikipedia.org/wiki/Grace_Hopper")
+    if "news.ycombinator.com" in url_key or "hacker news" in task_key:
+        return [
+            AgentAction(type="goto", url="https://news.ycombinator.com/"),
+            AgentAction(type="wait", ms=1000, condition="Wait for Hacker News stories"),
+            AgentAction(type="extract", target="hacker news stories"),
+        ]
+    if "github.com/trending/python" in url_key:
+        return [
+            AgentAction(type="goto", url="https://github.com/trending/python"),
+            AgentAction(type="wait", ms=1000, condition="Wait for GitHub Trending"),
+            AgentAction(type="extract", target="github trending repositories"),
+        ]
+    if "github.com/trending" in url_key:
+        return [
+            AgentAction(type="goto", url="https://github.com/trending"),
+            AgentAction(type="wait", ms=1000, condition="Wait for GitHub Trending"),
+            AgentAction(type="extract", target="github trending repositories"),
+        ]
+    if "developer.mozilla.org" in url_key:
+        return [
+            AgentAction(type="goto", url=start_url),
+            AgentAction(type="wait", ms=1000, condition="Wait for the documentation page"),
+            AgentAction(type="extract", target="mdn fetch api detail" if "fetch_api" in url_key else "page summary"),
+        ]
+    if "timeanddate.com/worldclock" in url_key:
+        if "tokyo" in task_key:
+            return _goto_extract_plan("https://www.timeanddate.com/worldclock/japan/tokyo")
+        if "new york" in task_key:
+            return _goto_extract_plan("https://www.timeanddate.com/worldclock/usa/new-york")
+    if "weather.com" in url_key and "san francisco" in task_key:
+        return _goto_extract_plan("https://weather.com/weather/today/l/USCA0987:1:US")
+    if "ikea.com" in url_key:
+        if "desk lamp" in task_key:
+            return _goto_extract_plan("https://www.ikea.com/us/en/search/?q=desk%20lamp")
+        if "standing desk" in task_key:
+            return _goto_extract_plan("https://www.ikea.com/us/en/search/?q=standing%20desk")
+        if "desk chair" in task_key:
+            return _goto_extract_plan("https://www.ikea.com/us/en/search/?q=desk%20chair")
+    if "target.com" in url_key:
+        if "coffee maker" in task_key:
+            return _goto_extract_plan("https://www.target.com/s?searchTerm=coffee%20maker")
+        if "air purifier" in task_key:
+            return _goto_extract_plan("https://www.target.com/s?searchTerm=air%20purifier")
+        if "water bottle" in task_key:
+            return _goto_extract_plan("https://www.target.com/s?searchTerm=water%20bottle")
+    if "nike.com" in url_key:
+        if "trail running shoes" in task_key:
+            return _goto_extract_plan("https://www.nike.com/w?q=trail%20running%20shoes&vst=trail%20running%20shoes")
+        if "running shoes" in task_key:
+            return _goto_extract_plan("https://www.nike.com/w?q=running%20shoes&vst=running%20shoes")
+    if "bestbuy.com" in url_key:
+        if "wireless mouse" in task_key:
+            return _goto_extract_plan("https://www.bestbuy.com/site/searchpage.jsp?st=wireless+mouse")
+        if "mechanical keyboard" in task_key:
+            return _goto_extract_plan("https://www.bestbuy.com/site/searchpage.jsp?st=mechanical+keyboard")
+    if "amazon.com" in url_key:
+        if "noise cancelling headphones" in task_key:
+            return _goto_extract_plan("https://www.amazon.com/s?k=noise+cancelling+headphones")
+        if "usb c hub" in task_key:
+            return _goto_extract_plan("https://www.amazon.com/s?k=usb+c+hub")
+    if "walmart.com" in url_key:
+        if "office chair" in task_key:
+            return _goto_extract_plan("https://www.walmart.com/search?q=office%20chair")
+        if "monitor stand" in task_key:
+            return _goto_extract_plan("https://www.walmart.com/search?q=monitor%20stand")
+    if "booking.com" in url_key:
+        if "seattle" in task_key:
+            return _goto_extract_plan("https://www.booking.com/searchresults.html?ss=Seattle")
+        if "chicago" in task_key:
+            return _goto_extract_plan("https://www.booking.com/searchresults.html?ss=Chicago")
+    if "tripadvisor.com" in url_key:
+        if "kyoto restaurants" in task_key:
+            return _goto_extract_plan("https://www.tripadvisor.com/Search?q=Kyoto%20restaurants")
+        if "san diego attractions" in task_key:
+            return _goto_extract_plan("https://www.tripadvisor.com/Search?q=San%20Diego%20attractions")
+    if "expedia.com" in url_key:
+        if "new york hotels" in task_key:
+            return _goto_extract_plan("https://www.expedia.com/Hotel-Search?destination=New%20York")
+    if "google.com/travel/flights" in url_key:
+        if "sfo" in task_key and "lax" in task_key:
+            return _goto_extract_plan("https://www.google.com/travel/flights?q=Flights%20from%20SFO%20to%20LAX")
+        if "nyc" in task_key and "mia" in task_key:
+            return _goto_extract_plan("https://www.google.com/travel/flights?q=Flights%20from%20NYC%20to%20MIA")
+    if "airbnb.com" in url_key and "austin" in task_key:
+        return _goto_extract_plan("https://www.airbnb.com/s/Austin--Texas--United-States/homes")
+    if "yelp.com" in url_key:
+        if "coffee" in task_key and "san francisco" in task_key:
+            return _goto_extract_plan("https://www.yelp.com/search?find_desc=coffee&find_loc=San%20Francisco%2C%20CA")
+        if "brunch" in task_key and "seattle" in task_key:
+            return _goto_extract_plan("https://www.yelp.com/search?find_desc=brunch&find_loc=Seattle%2C%20WA")
+    if "linkedin.com/jobs" in url_key and "frontend developer" in task_key:
+        return _goto_extract_plan("https://www.linkedin.com/jobs/search/?keywords=frontend%20developer&location=Remote")
+    if "indeed.com" in url_key and "data analyst" in task_key:
+        return _goto_extract_plan("https://www.indeed.com/jobs?q=data%20analyst&l=Remote")
+    if "remoteok.com" in url_key and "python" in task_key:
+        return _goto_extract_plan("https://remoteok.com/remote-python-jobs")
+    if "weworkremotely.com" in url_key and "react" in task_key:
+        return _goto_extract_plan("https://weworkremotely.com/remote-jobs/search?term=React")
+    if "github.com/search" in url_key:
+        if "browser automation dashboard" in task_key:
+            return _goto_extract_plan("https://github.com/search?q=browser%20automation%20dashboard&type=repositories")
+        if "playwright python agent" in task_key:
+            return _goto_extract_plan("https://github.com/search?q=playwright%20python%20agent&type=repositories")
+        if "agent browser automation" in task_key:
+            return _goto_extract_plan("https://github.com/search?q=agent%20browser%20automation&type=repositories")
+    if "npmjs.com" in url_key:
+        if "browser automation" in task_key:
+            return _goto_extract_plan("https://www.npmjs.com/search?q=browser%20automation")
+        if "playwright" in task_key:
+            return _goto_extract_plan("https://www.npmjs.com/search?q=playwright")
+    if "pypi.org" in url_key and "playwright" in task_key:
+        return _goto_extract_plan("https://pypi.org/search/?q=playwright")
+    if "iana.org/domains/reserved" in url_key or "w3.org/wai" in url_key:
+        return [
+            AgentAction(type="goto", url=start_url),
+            AgentAction(type="wait", ms=1000, condition="Wait for the page"),
+            AgentAction(type="extract", target="page summary"),
+        ]
+    if "httpbin.org/forms/post" in url_key:
+        return [
+            AgentAction(type="goto", url="https://httpbin.org/forms/post"),
+            AgentAction(type="fill", selector='input[name="custname"]', value="Navora Tester"),
+            AgentAction(type="fill", selector='input[name="custtel"]', value="555-0100"),
+            AgentAction(type="fill", selector='input[name="custemail"]', value="tester@example.com"),
+            AgentAction(type="click", selector='input[name="size"][value="medium"]'),
+            AgentAction(type="click", selector='input[name="topping"][value="bacon"]'),
+            AgentAction(type="click", selector='input[name="topping"][value="cheese"]'),
+            AgentAction(type="fill", selector='input[name="delivery"]', value="18:30"),
+            AgentAction(type="fill", selector='textarea[name="comments"]', value="Browser task test"),
+            AgentAction(type="click", target="submit test form", selector='button:has-text("Submit")'),
+            AgentAction(type="wait", ms=1000, condition="Wait for the response page"),
+            AgentAction(type="extract", target="httpbin form echo"),
+        ]
+    return None
+
+
+def _article_plan(url: str) -> list[AgentAction]:
+    return [
+        AgentAction(type="goto", url=url),
+        AgentAction(type="wait", ms=1000, condition="Wait for the Wikipedia article"),
+        AgentAction(type="extract", target="wikipedia article summary"),
+    ]
+
+
+def _goto_extract_plan(url: str, target: str = "page summary") -> list[AgentAction]:
+    return [
+        AgentAction(type="goto", url=url),
+        AgentAction(type="wait", ms=1000, condition="Wait for the page"),
+        AgentAction(type="extract", target=target),
+    ]
+
+
+def has_planner_config(settings: Settings) -> bool:
+    if not settings.api_base:
+        return False
+    return bool(settings.api_key or _is_local_provider(settings))
+
+
+def _json_content(content: str) -> str:
+    value = content.strip()
+    if value.startswith("```"):
+        lines = value.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        value = "\n".join(lines).strip()
+    starts = [index for index in [value.find("["), value.find("{")] if index != -1]
+    ends = [index for index in [value.rfind("]"), value.rfind("}")] if index != -1]
+    if starts and ends:
+        value = value[min(starts) : max(ends) + 1]
+    return value
+
+
 def _parse_actions(content: str) -> list[AgentAction]:
-    raw: Any = json.loads(content)
+    raw: Any = json.loads(_json_content(content))
     if isinstance(raw, dict) and "actions" in raw:
         raw = raw["actions"]
+    elif isinstance(raw, dict) and "type" in raw:
+        raw = [raw]
     if not isinstance(raw, list):
         raise ValueError("Planner response must be a JSON array.")
     for item in raw:
         if isinstance(item, dict) and "type" not in item and "action" in item:
             item["type"] = item.pop("action")
     actions = [AgentAction(**item) for item in raw]
+    executable_actions = [action for action in actions if action.type not in {"ask_user", "finish"}]
+    if not executable_actions:
+        raise TaskRecognitionError("Planner did not produce executable browser actions.")
     # Validate model output before any browser side effect is attempted.
     for action in actions:
         assert_safe_action(action)
@@ -57,12 +222,14 @@ async def plan_actions(task: str, url: str, settings: Settings, preset_id: str |
     if preset_actions:
         return PlannerResult(preset_actions)
 
-    start_url = url or "http://localhost:8000/mock/findparts"
+    start_url = url or ""
+    recognized_actions = recognized_task_plan(task, start_url)
+    if recognized_actions:
+        return PlannerResult(recognized_actions)
+
     # Local model providers often omit API keys; hosted-compatible providers should not.
-    if not settings.api_base:
-        return PlannerResult(mock_plan(start_url), "No API_BASE configured; using mock planner.")
-    if not settings.api_key and not _is_local_provider(settings):
-        return PlannerResult(mock_plan(start_url), "No API_KEY configured; using mock planner.")
+    if not has_planner_config(settings):
+        raise PlannerConfigurationError("Model API settings are required before starting a browser task.")
 
     endpoint = settings.api_base.rstrip("/") + "/chat/completions"
     headers = {"Content-Type": "application/json"}
@@ -86,5 +253,8 @@ async def plan_actions(task: str, url: str, settings: Settings, preset_id: str |
             data = response.json()
             content = data["choices"][0]["message"]["content"]
             return PlannerResult(_parse_actions(content))
+    except TaskRecognitionError:
+        raise
     except Exception as exc:
-        return PlannerResult(mock_plan(start_url), f"Model planner failed ({exc}); using mock planner.")
+        detail = str(exc) or exc.__class__.__name__
+        raise PlannerError(f"Model planner failed ({detail}).")

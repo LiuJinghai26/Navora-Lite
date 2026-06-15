@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 RunStatus = Literal["idle", "running", "completed", "failed", "stopped"]
 StepStatus = Literal["pending", "running", "success", "failed", "skipped", "stopped"]
 ChatRole = Literal["user", "assistant", "system"]
+FailureType = Literal["recognition_failed", "planning_failed", "execution_failed"]
 
 
 class ChecklistItem(BaseModel):
@@ -58,12 +59,13 @@ class Run(BaseModel):
     extracted: Any | None = None
     inputs: dict[str, Any] = Field(default_factory=dict)
     fallbackReason: str | None = None
+    failureType: FailureType | None = None
     stopRequested: bool = False
 
 
 class CreateRunRequest(BaseModel):
     task: str
-    url: str = "http://localhost:8000/mock/findparts"
+    url: str = ""
     auto_start: bool = True
     preset_id: str | None = None
 

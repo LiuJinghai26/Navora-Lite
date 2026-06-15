@@ -5,6 +5,7 @@ RISKY_TERMS = [
     "pay",
     "payment",
     "checkout",
+    "add to cart",
     "submit order",
     "place order",
     "delete account",
@@ -18,9 +19,17 @@ RISKY_TERMS = [
     "password",
     "提交订单",
     "支付",
+    "加入购物车",
     "删除账号",
     "修改密码",
     "验证码",
+]
+
+DISALLOWED_MOCK_TERMS = [
+    "aurora task lamp",
+    "mock/findparts",
+    "localhost:8000/mock",
+    "127.0.0.1:8000/mock",
 ]
 
 
@@ -34,6 +43,12 @@ def is_high_risk_action(action: AgentAction) -> bool:
 
 
 def assert_safe_action(action: AgentAction) -> None:
+    text = " ".join(
+        str(value).lower()
+        for value in [action.type, action.target, action.selector, action.value, action.url, action.reason, action.message]
+        if value
+    )
+    if any(term in text for term in DISALLOWED_MOCK_TERMS):
+        raise ValueError("Local mock shopping flow is disabled.")
     if is_high_risk_action(action):
         raise ValueError("This step requires user confirmation.")
-

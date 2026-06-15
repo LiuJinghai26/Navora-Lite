@@ -11,7 +11,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
   });
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    let message = `Request failed: ${response.status}`;
+    try {
+      const payload = await response.json();
+      if (typeof payload?.detail === "string") {
+        message = payload.detail;
+      }
+    } catch {
+      // Keep the status-only message when the response has no JSON body.
+    }
+    throw new Error(message);
   }
   if (response.status === 204) {
     return undefined as T;
@@ -33,7 +42,7 @@ export async function deleteTask(runId: string): Promise<void> {
 
 export async function createRun(
   task: string,
-  url = "http://localhost:8000/mock/findparts",
+  url = "",
   presetId?: string
 ): Promise<CreateRunResponse> {
   return request<CreateRunResponse>("/api/runs", {
