@@ -156,6 +156,37 @@ The model-configuration gate happens before the runner starts. Even if a task co
 
 `apps/server/app/agent/runner.py` contains the execution loop in `run_agent()`.
 
+End-to-end flow:
+
+```mermaid
+flowchart TD
+  A["User enters task text and optional URL"] --> B["Frontend calls POST /api/runs"]
+  B --> C["runs.py creates a Run<br/>with user message and inputs"]
+  C --> D{"auto_start=true?"}
+  D -- "No" --> E["Run remains idle<br/>Tasks page shows history"]
+  D -- "Yes" --> F["FastAPI BackgroundTasks<br/>schedules run_agent()"]
+  F --> G["Runner loads Run<br/>sets status to running"]
+  G --> H["plan_actions()<br/>preset / recognized / model planner"]
+  H --> I["Build AgentAction list<br/>append checklist message"]
+  I --> J["Create PlaywrightBrowserSession"]
+  J --> K["Create running timeline step per action"]
+  K --> L["Safety check assert_safe_action()"]
+  L --> M["Playwright executes goto / click / fill / scroll / extract actions"]
+  M --> N{"Action succeeded?"}
+  N -- "No" --> O["Mark failed<br/>persist error message and timeline"]
+  N -- "Yes" --> P["Write extracted data when needed"]
+  P --> Q["page.screenshot()<br/>save under ARTIFACTS_DIR"]
+  Q --> R["RunsStore.add_screenshot()<br/>attach screenshotUrl to timeline step"]
+  R --> S{"More actions?"}
+  S -- "Yes" --> K
+  S -- "No" --> T["Mark completed<br/>append completion message"]
+  O --> U["RunsStore publishes RunEvent"]
+  T --> U
+  R --> U
+  U --> V["SSE /api/runs/{run_id}/events"]
+  V --> W["Frontend run store updates<br/>Timeline / Recording / Browser Preview refresh"]
+```
+
 Execution flow:
 
 1. Load the run; return if missing.

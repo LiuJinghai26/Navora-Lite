@@ -156,6 +156,37 @@ recognition_failed | planning_failed | execution_failed
 
 `apps/server/app/agent/runner.py` 的 `run_agent()` 是执行主循环。
 
+端到端流程图：
+
+```mermaid
+flowchart TD
+  A["用户输入任务文本和可选 URL"] --> B["前端调用 POST /api/runs"]
+  B --> C["runs.py 创建 Run 记录<br/>写入用户消息和 inputs"]
+  C --> D{"auto_start=true?"}
+  D -- "否" --> E["Run 保持 idle<br/>Tasks 页面展示历史"]
+  D -- "是" --> F["FastAPI BackgroundTasks<br/>调度 run_agent()"]
+  F --> G["runner 读取 Run<br/>状态改为 running"]
+  G --> H["plan_actions()<br/>preset / recognized / model planner"]
+  H --> I["生成 AgentAction 列表<br/>追加 checklist 消息"]
+  I --> J["创建 PlaywrightBrowserSession"]
+  J --> K["逐个动作创建 running timeline step"]
+  K --> L["安全检查 assert_safe_action()"]
+  L --> M["Playwright 执行 goto / click / fill / scroll / extract 等动作"]
+  M --> N{"动作成功?"}
+  N -- "否" --> O["标记 failed<br/>写入错误消息和 timeline"]
+  N -- "是" --> P["必要时写入 extracted 数据"]
+  P --> Q["page.screenshot()<br/>保存到 ARTIFACTS_DIR"]
+  Q --> R["RunsStore.add_screenshot()<br/>绑定 screenshotUrl 到 timeline step"]
+  R --> S{"还有动作?"}
+  S -- "是" --> K
+  S -- "否" --> T["标记 completed<br/>追加完成消息"]
+  O --> U["RunsStore 发布 RunEvent"]
+  T --> U
+  R --> U
+  U --> V["SSE /api/runs/{run_id}/events"]
+  V --> W["前端 run store 更新<br/>Timeline / Recording / Browser Preview 刷新"]
+```
+
 执行流程：
 
 1. 读取 run；不存在则直接返回。
