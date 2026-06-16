@@ -1,6 +1,7 @@
 ﻿import asyncio
 import json
 from pathlib import Path
+import re
 import socket
 import subprocess
 import time
@@ -176,6 +177,11 @@ class PlaywrightBrowserSession(BrowserSession):
             if not target:
                 raise
         try:
+            if await self._current_wikipedia_article_matches(target):
+                return
+        except Exception:
+            pass
+        try:
             await self._click_named_link(target)
             await self._wait_for_page_settle()
             return
@@ -197,6 +203,17 @@ class PlaywrightBrowserSession(BrowserSession):
         if selector_error:
             raise selector_error
         raise ValueError(f"Could not click {target}")
+
+    async def _current_wikipedia_article_matches(self, target: str) -> bool:
+        if not target or "/wiki/" not in self.page.url or "Special:Search" in self.page.url:
+            return False
+        title = await self._evaluate(
+            """() => {
+                const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+                return clean(document.querySelector('#firstHeading')?.textContent || document.title.replace(/ - Wikipedia$/, ''));
+            }"""
+        )
+        return _normalize_wiki_title(str(title or "")) == _normalize_wiki_title(target)
 
     async def _click_named_link(self, target: str) -> None:
         script = """(target) => {
@@ -833,3 +850,7 @@ async def _wait_for_cdp(port: int) -> None:
 def _read_json_url(url: str) -> Any:
     with urllib.request.urlopen(url, timeout=0.5) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _normalize_wiki_title(value: str) -> str:
+    return re.sub(r"\s+", " ", value.replace("_", " ")).strip().casefold()

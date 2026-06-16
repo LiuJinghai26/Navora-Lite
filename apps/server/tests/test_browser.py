@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.agent.actions import AgentAction
-from app.agent.browser import PlaywrightBrowserSession, _requested_fields
+from app.agent.browser import PlaywrightBrowserSession, _normalize_wiki_title, _requested_fields
 
 
 def test_click_requires_selector_or_role_fallback():
@@ -29,3 +29,20 @@ def test_requested_fields_collects_extract_schema_keys():
     )
 
     assert _requested_fields(action) == ["name", "price", "details", "rating"]
+
+
+def test_current_wikipedia_article_match_prevents_self_link_click():
+    class FakePage:
+        url = "https://en.wikipedia.org/wiki/Large_language_model"
+
+        async def evaluate(self, script):
+            return "Large language model"
+
+    session = PlaywrightBrowserSession(None, None, FakePage())
+
+    assert asyncio.run(session._current_wikipedia_article_matches("Large_language_model")) is True
+    assert asyncio.run(session._current_wikipedia_article_matches("Multimodal learning")) is False
+
+
+def test_normalize_wiki_title_ignores_case_spacing_and_underscores():
+    assert _normalize_wiki_title(" Large_language   Model ") == "large language model"

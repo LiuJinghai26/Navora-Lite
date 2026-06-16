@@ -1,18 +1,286 @@
 {
-  "title": "Editable test prompts",
-  "description": "Edit this file freely for local batch-test experiments.",
+  "title": "Editable acceptance test prompts",
+  "description": "Acceptance-oriented browser automation prompts. These tasks favor public pages that were observed to automate reliably: Nike, Amazon, Wikipedia, Weather.com, BBC News, AP News, and GitHub.",
   "sections": [
     {
-      "slug": "scratch",
-      "title": "Scratch",
+      "slug": "wikipedia",
+      "title": "Wikipedia",
       "prompts": [
         {
           "number": 1,
-          "task": "打开 `https://example.com/`，提取页面标题和第一段可见文字。"
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `Ada Lovelace`，进入英文条目，提取页面标题、第一段摘要、出生日期和 known for 字段。"
         },
         {
           "number": 2,
-          "task": "打开 `https://example.com/`，提取页面标题和第一段可见文字。"
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `Grace Hopper`，进入英文条目，提取页面标题、第一段摘要、出生日期和主要成就。"
+        },
+        {
+          "number": 3,
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `Alan Turing`，进入英文条目，提取页面标题、第一段摘要、出生日期和 known for 字段。"
+        },
+        {
+          "number": 4,
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `World Wide Web`，进入英文条目，提取页面标题、第一段摘要、发明者和首次公开时间。"
+        },
+        {
+          "number": 5,
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `Python (programming language)`，进入英文条目，提取页面标题、第一段摘要、设计者、首次发布年份和类型系统。"
+        },
+        {
+          "number": 6,
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `JavaScript`，进入英文条目，提取页面标题、第一段摘要、设计者、首次发布年份和主要用途。"
+        },
+        {
+          "number": 7,
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `New York City`，进入英文条目，提取页面标题、第一段摘要、人口、面积和所在州。"
+        },
+        {
+          "number": 8,
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `Tokyo`，进入英文条目，提取页面标题、第一段摘要、国家、人口和时区。"
+        },
+        {
+          "number": 9,
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `CERN`，进入英文条目，提取页面标题、第一段摘要、成立时间、总部地点和主要研究领域。"
+        },
+        {
+          "number": 10,
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `OpenAI`，进入英文条目，提取页面标题、第一段摘要、成立时间、总部地点和关键人物。"
+        },
+        {
+          "number": 11,
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `Apollo 11`，进入英文条目，提取页面标题、第一段摘要、任务日期、乘员和着陆地点。"
+        },
+        {
+          "number": 12,
+          "task": "打开 `https://www.wikipedia.org/`，搜索 `Mount Everest`，进入英文条目，提取页面标题、第一段摘要、海拔、所在山脉和首次登顶信息。"
+        }
+      ]
+    },
+    {
+      "slug": "github",
+      "title": "GitHub",
+      "prompts": [
+        {
+          "number": 13,
+          "task": "打开 `https://github.com/trending`，提取今日 Trending 前 5 个仓库的名称、简介、主要语言、star 数和 fork 数。"
+        },
+        {
+          "number": 14,
+          "task": "打开 `https://github.com/trending/python`，提取前 5 个 Python Trending 仓库的名称、简介、star 数和今日 star 增长数。"
+        },
+        {
+          "number": 15,
+          "task": "打开 `https://github.com/trending/javascript`，提取前 5 个 JavaScript Trending 仓库的名称、简介、主要语言和今日 star 增长数。"
+        },
+        {
+          "number": 16,
+          "task": "打开 `https://github.com/trending/typescript`，提取前 5 个 TypeScript Trending 仓库的名称、简介、star 数和 fork 数。"
+        },
+        {
+          "number": 17,
+          "task": "打开 `https://github.com/trending/go`，提取前 5 个 Go Trending 仓库的名称、简介、主要语言和今日 star 增长数。"
+        },
+        {
+          "number": 18,
+          "task": "打开 `https://github.com/trending/rust`，提取前 5 个 Rust Trending 仓库的名称、简介、star 数和 fork 数。"
+        },
+        {
+          "number": 19,
+          "task": "打开 `https://github.com/search?q=playwright&type=repositories`，提取搜索结果前 5 个仓库的名称、简介、主要语言和 star 数。"
+        },
+        {
+          "number": 20,
+          "task": "打开 `https://github.com/search?q=fastapi&type=repositories`，提取搜索结果前 5 个仓库的名称、简介、主要语言和 star 数。"
+        },
+        {
+          "number": 21,
+          "task": "打开 `https://github.com/search?q=nextjs&type=repositories`，提取搜索结果前 5 个仓库的名称、简介、主要语言和 star 数。"
+        },
+        {
+          "number": 22,
+          "task": "打开 `https://github.com/microsoft/playwright`，提取仓库名称、简介、star 数、fork 数、主要语言、license 和 README 第一段。"
+        },
+        {
+          "number": 23,
+          "task": "打开 `https://github.com/tiangolo/fastapi`，提取仓库名称、简介、star 数、fork 数、主要语言、license 和 README 第一段。"
+        },
+        {
+          "number": 24,
+          "task": "打开 `https://github.com/vercel/next.js`，提取仓库名称、简介、star 数、fork 数、主要语言、license 和 README 第一段。"
+        }
+      ]
+    },
+    {
+      "slug": "nike",
+      "title": "Nike",
+      "prompts": [
+        {
+          "number": 25,
+          "task": "打开 `https://www.nike.com/`，搜索 `running shoes`，提取搜索结果前 5 个商品的名称、价格、颜色数量和商品链接，不要加入购物车。"
+        },
+        {
+          "number": 26,
+          "task": "打开 `https://www.nike.com/`，搜索 `trail running shoes`，提取搜索结果前 5 个商品的名称、价格、适用性别和商品链接，不要加入购物车。"
+        },
+        {
+          "number": 27,
+          "task": "打开 `https://www.nike.com/`，搜索 `basketball shoes`，提取搜索结果前 5 个商品的名称、价格、颜色数量和是否有促销信息。"
+        },
+        {
+          "number": 28,
+          "task": "打开 `https://www.nike.com/`，搜索 `training shoes`，提取搜索结果前 5 个商品的名称、价格、适用运动场景和商品链接。"
+        },
+        {
+          "number": 29,
+          "task": "打开 `https://www.nike.com/`，搜索 `men hoodie`，提取搜索结果前 5 个商品的名称、价格、颜色数量和商品链接。"
+        },
+        {
+          "number": 30,
+          "task": "打开 `https://www.nike.com/`，搜索 `women leggings`，提取搜索结果前 5 个商品的名称、价格、颜色数量和商品链接。"
+        },
+        {
+          "number": 31,
+          "task": "打开 `https://www.nike.com/`，搜索 `kids shoes`，提取搜索结果前 5 个商品的名称、价格、适用年龄或类别和商品链接。"
+        },
+        {
+          "number": 32,
+          "task": "打开 `https://www.nike.com/`，搜索 `Nike Air Max`，提取搜索结果前 5 个商品的名称、价格、颜色数量和商品链接，不要加入购物车。"
+        }
+      ]
+    },
+    {
+      "slug": "amazon",
+      "title": "Amazon",
+      "prompts": [
+        {
+          "number": 33,
+          "task": "打开 `https://www.amazon.com/`，搜索 `wireless mouse`，提取搜索结果前 5 个商品的名称、价格、评分和评论数，不要登录、不要加入购物车。"
+        },
+        {
+          "number": 34,
+          "task": "打开 `https://www.amazon.com/`，搜索 `mechanical keyboard`，提取搜索结果前 5 个商品的名称、价格、评分和是否显示 Prime 标识。"
+        },
+        {
+          "number": 35,
+          "task": "打开 `https://www.amazon.com/`，搜索 `noise cancelling headphones`，提取搜索结果前 5 个商品的名称、价格、评分和评论数，不要加入购物车。"
+        },
+        {
+          "number": 36,
+          "task": "打开 `https://www.amazon.com/`，搜索 `usb c hub`，提取搜索结果前 5 个商品的名称、价格、评分和主要卖点摘要。"
+        },
+        {
+          "number": 37,
+          "task": "打开 `https://www.amazon.com/`，搜索 `coffee grinder`，提取搜索结果前 5 个商品的名称、价格、评分和评论数。"
+        },
+        {
+          "number": 38,
+          "task": "打开 `https://www.amazon.com/`，搜索 `desk lamp`，提取搜索结果前 5 个商品的名称、价格、评分和是否显示优惠信息。"
+        },
+        {
+          "number": 39,
+          "task": "打开 `https://www.amazon.com/`，搜索 `water bottle stainless steel`，提取搜索结果前 5 个商品的名称、价格、容量或规格和评分。"
+        },
+        {
+          "number": 40,
+          "task": "打开 `https://www.amazon.com/`，搜索 `portable charger`，提取搜索结果前 5 个商品的名称、价格、评分和电池容量信息。"
+        }
+      ]
+    },
+    {
+      "slug": "weather",
+      "title": "Weather.com",
+      "prompts": [
+        {
+          "number": 41,
+          "task": "打开 `https://weather.com/`，搜索 `San Francisco, CA`，进入天气页，提取当前温度、天气状态、今日最高/最低温和降雨概率。"
+        },
+        {
+          "number": 42,
+          "task": "打开 `https://weather.com/`，搜索 `New York, NY`，进入天气页，提取当前温度、天气状态、体感温度和今日最高/最低温。"
+        },
+        {
+          "number": 43,
+          "task": "打开 `https://weather.com/`，搜索 `Seattle, WA`，进入天气页，提取当前温度、天气状态、湿度和风速。"
+        },
+        {
+          "number": 44,
+          "task": "打开 `https://weather.com/`，搜索 `Austin, TX`，进入天气页，提取当前温度、天气状态、今日最高/最低温和紫外线指数。"
+        },
+        {
+          "number": 45,
+          "task": "打开 `https://weather.com/`，搜索 `Chicago, IL`，进入天气页，提取当前温度、天气状态、风速和未来 3 小时的小时预报摘要。"
+        },
+        {
+          "number": 46,
+          "task": "打开 `https://weather.com/`，搜索 `London, United Kingdom`，进入天气页，提取当前温度、天气状态、今日最高/最低温和降雨概率。"
+        },
+        {
+          "number": 47,
+          "task": "打开 `https://weather.com/`，搜索 `Tokyo, Japan`，进入天气页，提取当前温度、天气状态、湿度和未来 3 天预报摘要。"
+        }
+      ]
+    },
+    {
+      "slug": "bbc-news",
+      "title": "BBC News",
+      "prompts": [
+        {
+          "number": 48,
+          "task": "打开 `https://www.bbc.com/news`，提取首页顶部 5 条新闻的标题、摘要、频道或标签和链接。"
+        },
+        {
+          "number": 49,
+          "task": "打开 `https://www.bbc.com/news`，进入或查找 World 频道，提取前 5 条新闻的标题、摘要和链接。"
+        },
+        {
+          "number": 50,
+          "task": "打开 `https://www.bbc.com/news`，进入或查找 Technology 频道，提取前 5 条科技新闻的标题、摘要和链接。"
+        },
+        {
+          "number": 51,
+          "task": "打开 `https://www.bbc.com/news`，进入或查找 Business 频道，提取前 5 条商业新闻的标题、摘要和链接。"
+        },
+        {
+          "number": 52,
+          "task": "打开 `https://www.bbc.com/news`，搜索 `climate`，提取搜索结果前 5 条新闻的标题、摘要、发布时间和链接。"
+        },
+        {
+          "number": 53,
+          "task": "打开 `https://www.bbc.com/news`，搜索 `technology`，提取搜索结果前 5 条新闻的标题、摘要、发布时间和链接。"
+        },
+        {
+          "number": 54,
+          "task": "打开 `https://www.bbc.com/news`，打开首页第一条新闻详情页，提取文章标题、发布时间、作者或来源、前 3 段正文摘要和页面链接。"
+        }
+      ]
+    },
+    {
+      "slug": "ap-news",
+      "title": "AP News",
+      "prompts": [
+        {
+          "number": 55,
+          "task": "打开 `https://apnews.com/`，提取首页顶部 5 条新闻的标题、摘要、分类和链接。"
+        },
+        {
+          "number": 56,
+          "task": "打开 `https://apnews.com/`，进入或查找 World News 频道，提取前 5 条新闻的标题、摘要和链接。"
+        },
+        {
+          "number": 57,
+          "task": "打开 `https://apnews.com/`，进入或查找 Politics 频道，提取前 5 条新闻的标题、摘要和链接。"
+        },
+        {
+          "number": 58,
+          "task": "打开 `https://apnews.com/`，进入或查找 Business 频道，提取前 5 条新闻的标题、摘要和链接。"
+        },
+        {
+          "number": 59,
+          "task": "打开 `https://apnews.com/`，搜索 `climate`，提取搜索结果前 5 条新闻的标题、摘要、发布时间和链接。"
+        },
+        {
+          "number": 60,
+          "task": "打开 `https://apnews.com/`，打开首页第一条新闻详情页，提取文章标题、发布时间、作者或来源、前 3 段正文摘要和页面链接。"
         }
       ]
     }
