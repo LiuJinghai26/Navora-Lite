@@ -1,7 +1,7 @@
 "use client";
 
 import { Maximize2, Square } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { API_BASE, stopRun } from "@/lib/api";
 import type { Run } from "@/lib/types";
 import { FullscreenPreviewDialog } from "./fullscreen-preview-dialog";
@@ -29,6 +29,22 @@ export function BrowserPreview({
   const latest = run.screenshots[run.screenshots.length - 1];
   const runningStep = [...run.timeline].reverse().find((step) => step.status === "running");
   const resolvedImageUrl = useMemo(() => absoluteImageUrl(imageUrl || latest?.imageUrl), [imageUrl, latest?.imageUrl]);
+  const [displayedImageUrl, setDisplayedImageUrl] = useState(resolvedImageUrl);
+
+  useEffect(() => {
+    let cancelled = false;
+    const image = new Image();
+    image.onload = () => {
+      if (!cancelled) setDisplayedImageUrl(resolvedImageUrl);
+    };
+    image.onerror = () => {
+      if (!cancelled) setDisplayedImageUrl(resolvedImageUrl);
+    };
+    image.src = resolvedImageUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedImageUrl]);
 
   const stop = async () => {
     // The bundled demo run is read-only; real runs are controlled through the API.
@@ -67,9 +83,8 @@ export function BrowserPreview({
       </div>
       <div className="relative aspect-video overflow-hidden p-3 theme-input">
         <img
-          key={resolvedImageUrl}
           className="h-full w-full rounded-md object-contain transition-opacity duration-200"
-          src={resolvedImageUrl}
+          src={displayedImageUrl}
           alt="Browser preview screenshot"
           loading="eager"
         />
@@ -80,7 +95,7 @@ export function BrowserPreview({
           </div>
         ) : null}
       </div>
-      <FullscreenPreviewDialog open={fullscreen} imageUrl={resolvedImageUrl} onClose={() => setFullscreen(false)} />
+      <FullscreenPreviewDialog open={fullscreen} imageUrl={displayedImageUrl} onClose={() => setFullscreen(false)} />
     </section>
   );
 }

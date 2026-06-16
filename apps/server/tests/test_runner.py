@@ -88,6 +88,63 @@ def test_visible_browser_session_stays_open_after_run():
         OPEN_BROWSER_SESSIONS.clear()
 
 
+def test_runner_adds_completed_timeline_step(monkeypatch, tmp_path):
+    async def fake_plan_actions(*args, **kwargs):
+        return PlannerResult([AgentAction(type="wait", ms=1, condition="Wait briefly")])
+
+    class FakeSession:
+        async def execute(self, action):
+            return None
+
+        async def screenshot(self, path, label):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("<svg></svg>", encoding="utf-8")
+
+        async def close(self):
+            return None
+
+    async def fake_create_browser_session(settings):
+        return FakeSession()
+
+    store = RunsStore(tmp_path / "runs.json")
+    store.create_run(
+        Run(
+            id="run_test",
+            title="Test Run",
+            task="Wait briefly",
+            url="",
+            messages=[
+                ChatMessage(
+                    id="msg_test",
+                    role="user",
+                    content="Wait briefly",
+                    createdAt=datetime.now(timezone.utc).isoformat(),
+                )
+            ],
+        )
+    )
+    monkeypatch.setattr("app.agent.runner.plan_actions", fake_plan_actions)
+    monkeypatch.setattr("app.agent.runner.create_browser_session", fake_create_browser_session)
+
+    run_agent(
+        "run_test",
+        store,
+        SimpleNamespace(
+            artifacts_dir=tmp_path / "artifacts",
+            browser_headless=True,
+            runner_step_delay_seconds=0,
+        ),
+    )
+
+    run = store.get_run("run_test")
+    assert run is not None
+    assert run.status == "completed"
+    assert run.timeline[-1].action == "completed"
+    assert run.timeline[-1].description == "Completed"
+    assert run.timeline[-1].status == "success"
+    assert run.timeline[-1].index == 2
+
+
 def test_multiple_extractions_are_accumulated():
     first = {"title": "First page"}
     second = {"title": "Linked page"}

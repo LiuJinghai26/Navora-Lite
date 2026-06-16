@@ -222,9 +222,23 @@ async def _run_agent_async(run_id: str, store: RunsStore, settings: Settings) ->
 
         run = store.get_run(run_id)
         if run:
-            run.finishedAt = now_iso()
+            finished_at = now_iso()
+            run.finishedAt = finished_at
             run.durationMs = ms_since(run_started)
             store.update_run(run)
+            store.add_step(
+                run_id,
+                TimelineStep(
+                    id=f"step_{uuid4().hex[:10]}",
+                    index=len(planner.actions) + 1,
+                    action="completed",
+                    description="Completed",
+                    status="success",
+                    startedAt=finished_at,
+                    endedAt=finished_at,
+                    durationMs=run.durationMs,
+                ),
+            )
         store.set_status(run_id, "completed")
         store.add_message(
             run_id,
