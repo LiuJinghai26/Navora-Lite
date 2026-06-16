@@ -20,6 +20,7 @@ BATCH_PROMPT_FILES = (
     "browser_task_prompts_60.json",
     "browser_task_prompts_60_no_url.json",
     "browser_multistep_prompts_20.json",
+    "editable_test_prompts.json",
 )
 
 

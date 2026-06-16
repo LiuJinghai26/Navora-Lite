@@ -1,0 +1,20 @@
+{
+  "title": "Editable test prompts",
+  "description": "Edit this file freely for local batch-test experiments.",
+  "sections": [
+    {
+      "slug": "scratch",
+      "title": "Scratch",
+      "prompts": [
+        {
+          "number": 1,
+          "task": "打开 `https://example.com/`，提取页面标题和第一段可见文字。"
+        },
+        {
+          "number": 2,
+          "task": "打开 `https://example.com/`，提取页面标题和第一段可见文字。"
+        }
+      ]
+    }
+  ]
+}

@@ -155,7 +155,8 @@ def test_tasks_api_lists_batch_prompt_sources():
 
     assert response.status_code == 200
     sources = response.json()
-    assert any(item["id"] == "all" and item["count"] == 140 for item in sources)
+    editable_count = len(tasks._load_prompt_items("editable_test_prompts.json"))
+    assert any(item["id"] == "all" and item["count"] == 140 + editable_count for item in sources)
     assert any(item["id"] == "browser_task_prompts_60.json" and item["count"] == 60 for item in sources)
     assert any(
         item["id"] == "browser_task_prompts_60.json#simple"
@@ -173,6 +174,7 @@ def test_tasks_api_lists_batch_prompt_sources():
     assert any(item["id"] == "browser_multistep_prompts_20.json" and item["count"] == 20 for item in sources)
     assert any(item["id"] == "browser_multistep_prompts_20.json#no-url-provided" and item["count"] == 10 for item in sources)
     assert any(item["id"] == "browser_multistep_prompts_20.json#url-provided" and item["count"] == 10 for item in sources)
+    assert any(item["id"] == "editable_test_prompts.json" and item["count"] == editable_count for item in sources)
 
 
 def test_batch_prompt_sections_are_read_from_structured_source():
